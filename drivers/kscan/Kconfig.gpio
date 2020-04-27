@@ -1,0 +1,20 @@
+# Generic GPIO Keyboard Matrix
+
+# Copyright (c) 2020 Peter Johanson <peter@peterjohanson.com>
+# SPDX-License-Identifier: Apache-2.0
+
+menuconfig KSCAN_GPIO
+	bool "GPIO Keyboard Matrix KSCAN driver"
+	depends on GPIO && HAS_DTS_GPIO
+	help
+	  Enable the generic GPIO keyboard matrix driver.
+
+if KSCAN_GPIO
+
+config KSCAN_GPIO_POLL_PERIOD
+	int "KSCAN_GPIO_POLL_PERIOD"
+	default 5
+	help
+	  Defines the poll period in msecs between between matrix scans.
+
+endif # KSCAN_GPIO
