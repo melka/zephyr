@@ -676,6 +676,18 @@
  */
 #define DT_PHANDLE(node_id, prop) DT_PHANDLE_BY_IDX(node_id, prop, 0)
 
+
+/**
+ * @brief Invokes given macro for all entries in phandle array.
+ *
+ * @param node_id node identifier
+ * @param fn macro to invoke
+ *
+ * Macro should be defined to take one parameter, which will be a node
+ * identifier for each child node of node_id.
+ */
+#define DT_FOREACH_PHA(node_id, prop, fn) \
+	DT_PROP(node_id, prop##_FOREACH_PHA)(fn)
 /*
  * reg property
  */

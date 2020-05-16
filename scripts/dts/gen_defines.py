@@ -518,6 +518,7 @@ def phandle_macros(prop, macro):
         for i, node in enumerate(prop.val):
             ret[f"{macro}_IDX_{i}_PH"] = f"DT_{node.z_path_id}"
     elif prop.type == "phandle-array":
+        ret[f"{macro}_FOREACH_PHA(fn)"] = " ".join([f"fn(DT_{macro}_IDX_{i}_FOREACH_PH_PARAMS)" for i, entry in enumerate(prop.val)])
         for i, entry in enumerate(prop.val):
             ret.update(controller_and_data_macros(entry, i, macro))
 
@@ -532,14 +533,18 @@ def controller_and_data_macros(entry, i, macro):
     # ControllerAndData.
 
     ret = {}
+    foreach_params = [f"DT_{macro}_IDX_{i}_PH"]
     data = entry.data
 
     # DT_N_<node-id>_P_<prop-id>_IDX_<i>_PH
     ret[f"{macro}_IDX_{i}_PH"] = f"DT_{entry.controller.z_path_id}"
     # DT_N_<node-id>_P_<prop-id>_IDX_<i>_VAL_<VAL>
     for cell, val in data.items():
+        foreach_params.append(f"DT_{macro}_IDX_{i}_VAL_{str2ident(cell)}")
         ret[f"{macro}_IDX_{i}_VAL_{str2ident(cell)}"] = val
         ret[f"{macro}_IDX_{i}_VAL_{str2ident(cell)}_EXISTS"] = 1
+
+    ret[f"{macro}_IDX_{i}_FOREACH_PH_PARAMS"] = ",".join(foreach_params)
 
     if not entry.name:
         return ret
