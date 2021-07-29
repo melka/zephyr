@@ -84,6 +84,16 @@
 			label = "UART_1";
 			status = "disabled";
 		};
+
+		usbd: usbd@50100000 {
+			compatible = "rpi,pico-usbd";
+			reg = <0x50100000 0x10000>;
+			interrupts = <5 3>;
+			interrupt-names = "usbctrl";
+			num-bidir-endpoints = <16>;
+			label = "USBD";
+			status = "disabled";
+		};
 	};
 };
 
