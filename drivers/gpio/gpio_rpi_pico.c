@@ -49,11 +49,9 @@ static int gpio_rpi_configure(const struct device *dev,
 		}
 	} else if (flags & GPIO_INPUT) {
 		gpio_set_dir(pin, GPIO_IN);
-		if (flags & GPIO_PULL_UP) {
-			gpio_pull_up(pin);
-		} else if (flags & GPIO_PULL_DOWN) {
-			gpio_pull_down(pin);
-		}
+		gpio_set_pulls(pin,
+			!!(flags & GPIO_PULL_UP),
+			!!(flags & GPIO_PULL_DOWN));
 	}
 
 	return 0;
@@ -119,6 +117,11 @@ static int gpio_rpi_pin_interrupt_configure(const struct device *dev,
 		}
 		gpio_set_irq_enabled(pin, events, true);
 	}
+	else
+	{
+		gpio_set_irq_enabled(pin, ALL_EVENTS, false);
+	}
+
 	WRITE_BIT(data->int_enabled_mask, pin, mode != GPIO_INT_DISABLE);
 	return 0;
 }
@@ -178,6 +181,10 @@ static void bank_##idx##_config_func(void)					\
 }										\
 static const struct gpio_rpi_config gpio_rpi_##idx##_config = {			\
 	.bank_config_func = bank_##idx##_config_func,				\
+	.common = \
+	{ \
+		.port_pin_mask = ((~0) & ~(BIT(23) | BIT(24) | BIT(29) | BIT(30) | BIT(31))) \
+	} \
 };										\
 										\
 static struct gpio_rpi_data gpio_rpi_##idx##_data;				\
