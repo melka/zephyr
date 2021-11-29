@@ -21,6 +21,8 @@ manifest:
   remotes:
     - name: upstream
       url-base: https://github.com/zephyrproject-rtos
+    - name: yonsch
+      url-base: https://github.com/yonsch
 
   #
   # Please add items below based on alphabetical order
@@ -235,6 +237,10 @@ manifest:
     - name: zscilib
       path: modules/lib/zscilib
       revision: 12bfe3f0a9fcbfe3edab7eabc9678b6c62875d34
+    - name: hal_rp_demo
+      path: modules/hal/raspberrypi
+      remote: yonsch
+      revision: master
 
   group-filter:
     - -ci
