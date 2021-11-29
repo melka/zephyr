@@ -7,6 +7,7 @@
 /dts-v1/;
 
 #include <raspberrypi/rp2040.dtsi>
+#include "raspberrypi_pico-pinctrl.dtsi"
 
 / {
 	chosen {

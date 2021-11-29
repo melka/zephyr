@@ -7,4 +7,7 @@ if SOC_FAMILY_RASPBERRY_PI
 
 source "soc/arm/raspberrypi/*/Kconfig.defconfig.series"
 
+config PINCTRL
+	default y
+
 endif # SOC_FAMILY_RASPBERRY_PI
