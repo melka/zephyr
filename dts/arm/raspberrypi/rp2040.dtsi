@@ -5,6 +5,7 @@
  */
 
 #include <arm/armv6-m.dtsi>
+#include <dt-bindings/gpio/gpio.h>
 #include <mem.h>
 
 / {
@@ -52,6 +53,16 @@
 			#size-cells = <1>;
 			status = "okay";
 			label = "PINCTRL";
+		};
+
+		gpio0: gpio@40014000 {
+			compatible = "raspberrypi,pico-gpio";
+			reg = <0x40014000 DT_SIZE_K(4)>;
+			interrupts = <13 3>;
+			gpio-controller;
+			#gpio-cells = <2>;
+			label = "GPIO_0";
+			status = "disabled";
 		};
 
 		uart0: uart@40034000 {

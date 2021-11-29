@@ -18,4 +18,8 @@ config UART_RPI_PICO
 	default y
 	depends on SERIAL
 
+config GPIO_RPI_PICO
+	default y
+	depends on GPIO
+
 endif # SOC_SERIES_RP2XXX
