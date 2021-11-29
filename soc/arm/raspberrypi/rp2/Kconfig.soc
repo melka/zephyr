@@ -1,0 +1,26 @@
+# Raspberry Pi RP2XXX MCU line
+
+# Copyright (c) 2021 Nordic Semiconductor ASA
+# Copyright (c) 2021 Yonatan Schachter
+# SPDX-License-Identifier: Apache-2.0
+
+choice
+	prompt "RP2xxx MCU Selection"
+	depends on SOC_SERIES_RP2XXX
+
+config SOC_RP2040
+	bool "Raspberry Pi RP2040"
+
+endchoice
+
+config RP2_FLASH_W25Q080
+	bool
+
+config RP2_FLASH_GENERIC_03H
+	bool
+
+config RP2_FLASH_IS25LP080
+	bool
+
+config RP2_FLASH_W25X10CL
+	bool
