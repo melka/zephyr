@@ -487,6 +487,7 @@ raidsonic	RaidSonic Technology GmbH
 ralink	Mediatek/Ralink Technology Corp.
 ramtron	Ramtron International
 raspberrypi	Raspberry Pi Foundation
+rpi	Raspberry Pi Foundation
 raydium	Raydium Semiconductor Corp.
 rda	Unisoc Communications, Inc.
 realtek	Realtek Semiconductor Corp.
