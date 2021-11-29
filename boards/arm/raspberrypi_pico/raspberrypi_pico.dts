@@ -13,6 +13,7 @@
 	chosen {
 		zephyr,sram = &sram0;
 		zephyr,flash = &flash0;
+		zephyr,console = &uart0;
 	};
 };
 
@@ -21,4 +22,11 @@
 	 * the second stage bootloader
 	 */
 	reg = <0x10000100 0x001fff00>;
+};
+
+&uart0 {
+	current-speed = <115200>;
+	status = "okay";
+	pinctrl-0 = <&uart0_default>;
+	pinctrl-names = "default";
 };

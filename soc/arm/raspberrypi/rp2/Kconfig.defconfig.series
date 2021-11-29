@@ -14,4 +14,8 @@ config SOC_SERIES
 config NUM_IRQS
 	default 26
 
+config UART_RPI_PICO
+	default y
+	depends on SERIAL
+
 endif # SOC_SERIES_RP2XXX
