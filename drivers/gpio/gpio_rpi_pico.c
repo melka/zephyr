@@ -38,6 +38,7 @@ static int gpio_rpi_configure(const struct device *dev,
 	}
 
 	gpio_init(pin);
+	gpio_set_slew_rate(pin, GPIO_SLEW_RATE_FAST);
 
 	if (flags & GPIO_OUTPUT) {
 		gpio_set_dir(pin, GPIO_OUT);
