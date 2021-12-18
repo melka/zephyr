@@ -85,6 +85,30 @@
 			status = "disabled";
 		};
 
+		spi0: spi@4003c000 {
+			compatible = "rpi,pico-spi";
+			#address-cells = <1>;
+			#size-cells = <0>;
+			reg = <0x4003c000 DT_SIZE_K(4)>;
+			clocks = <&peripheral_clk>;
+			interrupts = <22 3>;
+			interrupt-names = "spi0";
+			label = "SPI_0";
+			status = "disabled";
+		};
+
+		spi1: spi@40040000 {
+			compatible = "rpi,pico-spi";
+			#address-cells = <1>;
+			#size-cells = <0>;
+			reg = <0x40040000 DT_SIZE_K(4)>;
+			clocks = <&peripheral_clk>;
+			interrupts = <23 3>;
+			interrupt-names = "spi1";
+			label = "SPI_1";
+			status = "disabled";
+		};
+
 		usbd: usbd@50100000 {
 			compatible = "rpi,pico-usbd";
 			reg = <0x50100000 0x10000>;

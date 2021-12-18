@@ -1,0 +1,14 @@
+# RaspberryPi Pico SPI
+
+# Copyright (c) 2021 Pete Johanson
+# SPDX-License-Identifier: Apache-2.0
+
+# Workaround for not being able to have commas in macro arguments
+DT_COMPAT_RPI_PICO_SPI := rpi,pico-spi
+
+config SPI_RPI_PICO
+	default $(dt_compat_enabled,$(DT_COMPAT_RPI_PICO_SPI))
+	bool "RaspberryPi Pico SPI driver"
+	select PICOSDK_USE_SPI
+	help
+	  Enable support for the RaspberryPi Pico SPI driver.

@@ -16,6 +16,21 @@
 #define static_assert(...)
 
 /**
+ * pico-sdk expects __CONCAT, __STRING to be defined, but we can't use
+ * Zephyr's sys/cdefs.h because this file is also included in
+ * assembly files. Therefore, we have to manually define them
+ * only when they aren't defined, to avoid a conflict.
+ */
+#ifndef __CONCAT
+#define __CAT(a, b) a ## b
+#define __CONCAT(a, b) __CAT(a, b)
+#endif /* __CONCAT */
+
+#ifndef __STRING
+#define __STRING(x) #x
+#endif /* __STRING */
+
+/**
  * pico-sdk expects __CONCAT to be defined, but we can't use
  * Zephyr's sys/cdefs.h because this file is also included in
  * assembly files. Therefore, we have to manually define __CONCAT

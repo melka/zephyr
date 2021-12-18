@@ -65,6 +65,8 @@ source "drivers/spi/Kconfig.mcux_lpspi"
 
 source "drivers/spi/Kconfig.rv32m1_lpspi"
 
+source "drivers/spi/Kconfig.rpi_pico"
+
 source "drivers/spi/Kconfig.sam"
 
 source "drivers/spi/Kconfig.sam0"
