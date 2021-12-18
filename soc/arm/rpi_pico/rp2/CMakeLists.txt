@@ -7,3 +7,6 @@ zephyr_library_sources(
   soc.c
   rp2_init.c
   )
+
+zephyr_linker_sources(RODATA rp2-rodata.ld)
+
