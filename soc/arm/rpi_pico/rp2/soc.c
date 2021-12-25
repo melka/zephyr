@@ -15,8 +15,10 @@
 
 #include <kernel.h>
 #include <init.h>
+#include <arch/arm/aarch32/cortex_m/cmsis.h>
 #include <logging/log.h>
 
+#include <pico/bootrom.h>
 
 #ifdef CONFIG_RUNTIME_NMI
 extern void z_arm_nmi_init(void);
@@ -26,6 +28,17 @@ extern void z_arm_nmi_init(void);
 #endif
 
 LOG_MODULE_REGISTER(soc, CONFIG_SOC_LOG_LEVEL);
+
+/* Overrides the weak ARM implementation:
+   Set general purpose retention register and reboot */
+void sys_arch_reboot(int type)
+{
+	if (type != 0) {
+		reset_usb_boot(0,0);
+	} else {
+		NVIC_SystemReset();
+	}
+}
 
 void rp2_init(void);
 
