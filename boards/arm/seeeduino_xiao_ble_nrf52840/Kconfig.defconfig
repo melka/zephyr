@@ -1,0 +1,15 @@
+# Seeeduino Xiao BLE nRF52840 board configuration
+
+# Copyright (c) 2021 Peter Johanson
+# SPDX-License-Identifier: Apache-2.0
+
+config BOARD
+	default "seeeduino_xiao_ble_nrf52840" if BOARD_SEEEDUINO_XIAO_BLE_NRF52840
+	default "seeeduino_xiao_ble_nrf52840_sense" if BOARD_SEEEDUINO_XIAO_BLE_NRF52840_SENSE
+
+if BOARD_SEEEDUINO_XIAO_BLE_NRF52840 || BOARD_SEEEDUINO_XIAO_BLE_NRF52840_SENSE
+
+config BT_CTLR
+	default BT
+
+endif # BOARD_SEEEDUINO_XIAO_BLE_NRF52840 || BOARD_SEEEDUINO_XIAO_BLE_NRF52840_SENSE

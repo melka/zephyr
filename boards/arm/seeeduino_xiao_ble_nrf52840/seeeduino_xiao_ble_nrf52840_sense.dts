@@ -1,0 +1,28 @@
+/*
+ * Copyright (c) 2021 Peter Johanson
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+#include "seeeduino_xiao_ble_nrf52840.dtsi"
+
+&i2c1 {
+	sda-pin = <7>;
+	scl-pin = <27>;
+
+	/*
+	 * Needs a driver implementation still
+	 */
+	/*
+	* lsm6ds3: lsm6ds3@0 {
+	* 	reg = <0>;
+	* 	label = "6DOF_SENSOR";
+	* };
+	*/
+};
+
+/*
+ * NOTE: curiously, there is no PDM (microphone) interface in the
+ * nordic DTSI file.
+ * You'll need to use the nordic-specific PDM libraries.
+ */
