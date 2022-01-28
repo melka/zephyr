@@ -4,9 +4,12 @@
 
 /*
  * Copyright (c) 2015 Intel Corporation
+ * Copyright (c) 2021 Nordic Semiconductor ASA
  *
  * SPDX-License-Identifier: Apache-2.0
  */
+
+#include <bluetooth/iso.h>
 
 typedef enum __packed {
 	BT_CONN_DISCONNECTED,
@@ -44,6 +47,10 @@ enum {
 	BT_CONN_AUTO_DATA_LEN_COMPLETE,
 
 	BT_CONN_CTE_RX_ENABLED,          /* CTE receive and sampling is enabled */
+	BT_CONN_CTE_RX_PARAMS_SET,       /* CTE parameters are set */
+	BT_CONN_CTE_TX_PARAMS_SET,       /* CTE transmission parameters are set */
+	BT_CONN_CTE_REQ_ENABLED,         /* CTE request procedure is enabled */
+	BT_CONN_CTE_RSP_ENABLED,         /* CTE response procedure is enabled */
 
 	/* Total number of flags - must be at the end of the enum */
 	BT_CONN_NUM_FLAGS,
@@ -121,8 +128,8 @@ struct bt_conn_iso {
 		uint8_t			bis_id;
 	};
 
-	/** If true, this is a ISO for a BIS, else it is a ISO for a CIS */
-	bool is_bis;
+	/** Type of the ISO channel */
+	enum bt_iso_chan_type type;
 };
 
 typedef void (*bt_conn_tx_cb_t)(struct bt_conn *conn, void *user_data);
@@ -165,8 +172,12 @@ struct bt_conn {
 #endif /* CONFIG_BT_SMP || CONFIG_BT_BREDR */
 
 #if defined(CONFIG_BT_DF_CONNECTION_CTE_RX)
-	/** Accepted CTE type */
-	uint8_t cte_type;
+	/**
+	 * @brief Bitfield with allowed CTE types.
+	 *
+	 *  Allowed values are defined by @ref bt_df_cte_type, except BT_DF_CTE_TYPE_NONE.
+	 */
+	uint8_t cte_types;
 #endif /* CONFIG_BT_DF_CONNECTION_CTE_RX */
 
 	/* Connection error or reason for disconnect */

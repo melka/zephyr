@@ -21,6 +21,7 @@
 #include "util/memq.h"
 #include "util/mfifo.h"
 #include "util/mayfly.h"
+#include "util/dbuf.h"
 
 #include "ticker/ticker.h"
 
@@ -1309,6 +1310,8 @@ int ull_conn_llcp(struct ll_conn *conn, uint32_t ticks_at_expire, uint16_t lazy)
 		if (tx) {
 			struct pdu_data *pdu_tx = (void *)tx->pdu;
 
+			ull_pdu_data_init(pdu_tx);
+
 			/* Terminate Procedure initiated,
 			 * make (req - ack) == 2
 			 */
@@ -1645,6 +1648,18 @@ void ull_conn_done(struct node_rx_event_done *done)
 		}
 	}
 #endif /* CONFIG_BT_CTLR_LE_PING */
+
+#if defined(CONFIG_BT_CTLR_DF_CONN_CTE_REQ)
+	if (conn->llcp.cte_req.req_expire != 0U) {
+		if (conn->llcp.cte_req.req_expire > elapsed_event) {
+			conn->llcp.cte_req.req_expire -= elapsed_event;
+		} else {
+			conn->llcp.cte_req.req_expire = 0U;
+			ull_cp_cte_req(conn, conn->llcp.cte_req.min_cte_len,
+				       conn->llcp.cte_req.cte_type);
+		}
+	}
+#endif /* CONFIG_BT_CTLR_DF_CONN_CTE_REQ */
 
 #if defined(CONFIG_BT_CTLR_CONN_RSSI_EVENT)
 	/* generate RSSI event */
@@ -2047,6 +2062,19 @@ uint16_t ull_conn_lll_max_tx_octets_get(struct lll_conn *lll)
 	return max_tx_octets;
 }
 
+/**
+ * @brief Initialize pdu_data members that are read only in lower link layer.
+ *
+ * @param pdu_tx Pointer to pdu_data object to be initialized
+ */
+void ull_pdu_data_init(struct pdu_data *pdu_tx)
+{
+#if defined(CONFIG_BT_CTLR_DF_CONN_CTE_TX)
+	pdu_tx->cp = 0U;
+	pdu_tx->resv = 0U;
+#endif /* CONFIG_BT_CTLR_DF_CONN_CTE_TX */
+}
+
 static int init_reset(void)
 {
 	/* Initialize conn pool. */
@@ -2282,6 +2310,7 @@ static void conn_cleanup_finalize(struct ll_conn *conn)
 	}
 #else /* CONFIG_BT_LL_SW_LLCP_LEGACY */
 	ARG_UNUSED(rx);
+	ull_cp_state_set(conn, ULL_CP_DISCONNECTED);
 #endif /* CONFIG_BT_LL_SW_LLCP_LEGACY */
 
 	/* flush demux-ed Tx buffer still in ULL context */
@@ -2994,6 +3023,8 @@ static inline int event_conn_upd_prep(struct ll_conn *conn, uint16_t lazy,
 
 		pdu_ctrl_tx = (void *)tx->pdu;
 
+		ull_pdu_data_init(pdu_ctrl_tx);
+
 #if defined(CONFIG_BT_CTLR_SCHED_ADVANCED)
 		event_conn_upd_init(conn, event_counter, ticks_at_expire,
 				    pdu_ctrl_tx, &s_mfy_sched_offset,
@@ -3279,6 +3310,8 @@ static inline void event_ch_map_prep(struct ll_conn *conn,
 		if (tx) {
 			struct pdu_data *pdu_ctrl_tx = (void *)tx->pdu;
 
+			ull_pdu_data_init(pdu_ctrl_tx);
+
 			/* reset initiate flag */
 			conn->llcp.chan_map.initiate = 0U;
 
@@ -3428,6 +3461,8 @@ static inline void event_enc_prep(struct ll_conn *conn)
 	}
 
 	pdu_ctrl_tx = (void *)tx->pdu;
+
+	ull_pdu_data_init(pdu_ctrl_tx);
 
 	/* central sends encrypted enc start rsp in control priority */
 	if (!lll->role) {
@@ -3585,6 +3620,8 @@ static inline void event_fex_prep(struct ll_conn *conn)
 	if (tx) {
 		struct pdu_data *pdu = (void *)tx->pdu;
 
+		ull_pdu_data_init(pdu);
+
 		/* procedure request acked, move to waiting state */
 		conn->llcp_feature.ack--;
 
@@ -3626,6 +3663,8 @@ static inline void event_vex_prep(struct ll_conn *conn)
 			struct pdu_data *pdu = (void *)tx->pdu;
 			uint16_t cid;
 			uint16_t svn;
+
+			ull_pdu_data_init(pdu);
 
 			/* procedure request acked, move to waiting state  */
 			conn->llcp_version.ack--;
@@ -3708,6 +3747,9 @@ static inline void event_conn_param_req(struct ll_conn *conn,
 
 	/* place the conn param req packet as next in tx queue */
 	pdu_ctrl_tx = (void *)tx->pdu;
+
+	ull_pdu_data_init(pdu_ctrl_tx);
+
 	pdu_ctrl_tx->ll_id = PDU_DATA_LLID_CTRL;
 	pdu_ctrl_tx->len = offsetof(struct pdu_data_llctrl, conn_param_req) +
 		sizeof(struct pdu_data_llctrl_conn_param_req);
@@ -3801,6 +3843,9 @@ static inline void event_conn_param_rsp(struct ll_conn *conn)
 
 		/* central/peripheral response with reject ext ind */
 		pdu = (void *)tx->pdu;
+
+		ull_pdu_data_init(pdu);
+
 		pdu->ll_id = PDU_DATA_LLID_CTRL;
 		pdu->llctrl.opcode = PDU_DATA_LLCTRL_TYPE_REJECT_EXT_IND;
 		pdu->len = offsetof(struct pdu_data_llctrl, reject_ext_ind) +
@@ -3868,6 +3913,9 @@ static inline void event_conn_param_rsp(struct ll_conn *conn)
 
 	/* place the conn param rsp packet as next in tx queue */
 	pdu = (void *)tx->pdu;
+
+	ull_pdu_data_init(pdu);
+
 	pdu->ll_id = PDU_DATA_LLID_CTRL;
 	pdu->len = offsetof(struct pdu_data_llctrl, conn_param_rsp) +
 		sizeof(struct pdu_data_llctrl_conn_param_rsp);
@@ -4014,6 +4062,8 @@ static inline void event_ping_prep(struct ll_conn *conn)
 	if (tx) {
 		struct pdu_data *pdu_ctrl_tx = (void *)tx->pdu;
 
+		ull_pdu_data_init(pdu_ctrl_tx);
+
 		/* procedure request acked */
 		conn->llcp_ack = conn->llcp_req;
 
@@ -4142,6 +4192,9 @@ static inline void event_len_prep(struct ll_conn *conn)
 
 		/* place the length req packet as next in tx queue */
 		pdu_ctrl_tx = (void *) tx->pdu;
+
+		ull_pdu_data_init(pdu_ctrl_tx);
+
 		pdu_ctrl_tx->ll_id = PDU_DATA_LLID_CTRL;
 		pdu_ctrl_tx->len =
 			offsetof(struct pdu_data_llctrl, length_req) +
@@ -4304,6 +4357,9 @@ static inline void event_phy_req_prep(struct ll_conn *conn)
 
 		/* place the phy req packet as next in tx queue */
 		pdu_ctrl_tx = (void *)tx->pdu;
+
+		ull_pdu_data_init(pdu_ctrl_tx);
+
 		pdu_ctrl_tx->ll_id = PDU_DATA_LLID_CTRL;
 		pdu_ctrl_tx->len =
 			offsetof(struct pdu_data_llctrl, phy_req) +
@@ -4476,6 +4532,9 @@ static inline void event_phy_upd_ind_prep(struct ll_conn *conn,
 		 * tx queue
 		 */
 		pdu_ctrl_tx = (void *)tx->pdu;
+
+		ull_pdu_data_init(pdu_ctrl_tx);
+
 		pdu_ctrl_tx->ll_id = PDU_DATA_LLID_CTRL;
 		pdu_ctrl_tx->len =
 			offsetof(struct pdu_data_llctrl, phy_upd_ind) +
@@ -4766,6 +4825,9 @@ static void enc_req_reused_send(struct ll_conn *conn, struct node_tx **tx)
 	struct pdu_data *pdu_ctrl_tx;
 
 	pdu_ctrl_tx = (void *)(*tx)->pdu;
+
+	ull_pdu_data_init(pdu_ctrl_tx);
+
 	pdu_ctrl_tx->ll_id = PDU_DATA_LLID_CTRL;
 	pdu_ctrl_tx->len = offsetof(struct pdu_data_llctrl, enc_req) +
 			   sizeof(struct pdu_data_llctrl_enc_req);
@@ -4809,6 +4871,9 @@ static int enc_rsp_send(struct ll_conn *conn)
 	}
 
 	pdu_ctrl_tx = (void *)tx->pdu;
+
+	ull_pdu_data_init(pdu_ctrl_tx);
+
 	pdu_ctrl_tx->ll_id = PDU_DATA_LLID_CTRL;
 	pdu_ctrl_tx->len = offsetof(struct pdu_data_llctrl, enc_rsp) +
 			   sizeof(struct pdu_data_llctrl_enc_rsp);
@@ -4857,6 +4922,8 @@ static int start_enc_rsp_send(struct ll_conn *conn,
 
 	/* enable transmit encryption */
 	conn->lll.enc_tx = 1;
+
+	ull_pdu_data_init(pdu_ctrl_tx);
 
 	pdu_ctrl_tx->ll_id = PDU_DATA_LLID_CTRL;
 	pdu_ctrl_tx->len = offsetof(struct pdu_data_llctrl, enc_rsp);
@@ -4918,6 +4985,9 @@ static int unknown_rsp_send(struct ll_conn *conn, struct node_rx_pdu *rx,
 	}
 
 	pdu = (void *)tx->pdu;
+
+	ull_pdu_data_init(pdu);
+
 	pdu->ll_id = PDU_DATA_LLID_CTRL;
 	pdu->len = offsetof(struct pdu_data_llctrl, unknown_rsp) +
 			   sizeof(struct pdu_data_llctrl_unknown_rsp);
@@ -4991,6 +5061,9 @@ static int feature_rsp_send(struct ll_conn *conn, struct node_rx_pdu *rx,
 
 	/* Enqueue feature response */
 	pdu_tx = (void *)tx->pdu;
+
+	ull_pdu_data_init(pdu_tx);
+
 	pdu_tx->ll_id = PDU_DATA_LLID_CTRL;
 	pdu_tx->len = offsetof(struct pdu_data_llctrl, feature_rsp) +
 		sizeof(struct pdu_data_llctrl_feature_rsp);
@@ -5080,6 +5153,9 @@ static int pause_enc_rsp_send(struct ll_conn *conn, struct node_rx_pdu *rx,
 
 	/* Enqueue pause enc rsp */
 	pdu_ctrl_tx = (void *)tx->pdu;
+
+	ull_pdu_data_init(pdu_ctrl_tx);
+
 	pdu_ctrl_tx->ll_id = PDU_DATA_LLID_CTRL;
 	pdu_ctrl_tx->len = offsetof(struct pdu_data_llctrl, enc_rsp);
 	pdu_ctrl_tx->llctrl.opcode = PDU_DATA_LLCTRL_TYPE_PAUSE_ENC_RSP;
@@ -5109,6 +5185,9 @@ static int version_ind_send(struct ll_conn *conn, struct node_rx_pdu *rx,
 		conn->llcp_version.tx = 1U;
 
 		pdu_tx = (void *)tx->pdu;
+
+		ull_pdu_data_init(pdu_tx);
+
 		pdu_tx->ll_id = PDU_DATA_LLID_CTRL;
 		pdu_tx->len =
 			offsetof(struct pdu_data_llctrl, version_ind) +
@@ -5164,6 +5243,9 @@ static int reject_ext_ind_send(struct ll_conn *conn, struct node_rx_pdu *rx,
 	}
 
 	pdu_ctrl_tx = (void *)tx->pdu;
+
+	ull_pdu_data_init(pdu_ctrl_tx);
+
 	pdu_ctrl_tx->ll_id = PDU_DATA_LLID_CTRL;
 	pdu_ctrl_tx->len = offsetof(struct pdu_data_llctrl, reject_ext_ind) +
 		sizeof(struct pdu_data_llctrl_reject_ext_ind);
@@ -5487,6 +5569,9 @@ static void length_resp_send(struct ll_conn *conn, struct node_tx *tx,
 	struct pdu_data *pdu_tx;
 
 	pdu_tx = (void *)tx->pdu;
+
+	ull_pdu_data_init(pdu_tx);
+
 	pdu_tx->ll_id = PDU_DATA_LLID_CTRL;
 	pdu_tx->len = offsetof(struct pdu_data_llctrl, length_rsp) +
 		sizeof(struct pdu_data_llctrl_length_rsp);
@@ -5778,6 +5863,9 @@ static int ping_resp_send(struct ll_conn *conn, struct node_rx_pdu *rx)
 	}
 
 	pdu_tx = (void *)tx->pdu;
+
+	ull_pdu_data_init(pdu_tx);
+
 	pdu_tx->ll_id = PDU_DATA_LLID_CTRL;
 	pdu_tx->len = offsetof(struct pdu_data_llctrl, ping_rsp) +
 		      sizeof(struct pdu_data_llctrl_ping_rsp);
@@ -5833,6 +5921,9 @@ static int phy_rsp_send(struct ll_conn *conn, struct node_rx_pdu *rx,
 	conn->llcp_phy.rx &= p->tx_phys;
 
 	pdu_ctrl_tx = (void *)tx->pdu;
+
+	ull_pdu_data_init(pdu_ctrl_tx);
+
 	pdu_ctrl_tx->ll_id = PDU_DATA_LLID_CTRL;
 	pdu_ctrl_tx->len = offsetof(struct pdu_data_llctrl, phy_rsp) +
 			   sizeof(struct pdu_data_llctrl_phy_rsp);
@@ -5986,6 +6077,8 @@ void event_send_cis_rsp(struct ll_conn *conn)
 	tx = mem_acquire(&mem_conn_tx_ctrl.free);
 	if (tx) {
 		struct pdu_data *pdu = (void *)tx->pdu;
+
+		ull_pdu_data_init(pdu);
 
 		pdu->ll_id = PDU_DATA_LLID_CTRL;
 		pdu->llctrl.opcode = PDU_DATA_LLCTRL_TYPE_CIS_RSP;

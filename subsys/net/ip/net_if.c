@@ -14,6 +14,7 @@ LOG_MODULE_REGISTER(net_if, CONFIG_NET_IF_LOG_LEVEL);
 #include <syscall_handler.h>
 #include <stdlib.h>
 #include <string.h>
+#include <net/igmp.h>
 #include <net/net_core.h>
 #include <net/net_pkt.h>
 #include <net/net_if.h>
@@ -333,6 +334,12 @@ void net_process_tx_packet(struct net_pkt *pkt)
 
 void net_if_queue_tx(struct net_if *iface, struct net_pkt *pkt)
 {
+	if (!net_pkt_filter_send_ok(pkt)) {
+		/* silently drop the packet */
+		net_pkt_unref(pkt);
+		return;
+	}
+
 	uint8_t prio = net_pkt_priority(pkt);
 	uint8_t tc = net_tx_priority2tc(prio);
 
@@ -3785,7 +3792,27 @@ static void iface_ipv4_init(int if_count)
 	}
 }
 
+static void leave_ipv4_mcast_all(struct net_if *iface)
+{
+	struct net_if_ipv4 *ipv4 = iface->config.ip.ipv4;
+	int i;
+
+	if (!ipv4) {
+		return;
+	}
+
+	for (i = 0; i < NET_IF_MAX_IPV4_MADDR; i++) {
+		if (!ipv4->mcast[i].is_used ||
+		    !ipv4->mcast[i].is_joined) {
+			continue;
+		}
+
+		net_ipv4_igmp_leave(iface, &ipv4->mcast[i].address.in_addr);
+	}
+}
+
 #else
+#define leave_ipv4_mcast_all(...)
 #define iface_ipv4_init(...)
 
 struct net_if_mcast_addr *net_if_ipv4_maddr_lookup(const struct in_addr *addr,
@@ -4059,6 +4086,7 @@ int net_if_down(struct net_if *iface)
 	k_mutex_lock(&lock, K_FOREVER);
 
 	leave_mcast_all(iface);
+	leave_ipv4_mcast_all(iface);
 
 	if (net_if_is_ip_offloaded(iface)) {
 		goto done;

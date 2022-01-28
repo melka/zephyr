@@ -48,10 +48,13 @@ static int mcp230xx_write_port_regs(const struct device *dev, uint8_t reg, uint1
 	const struct mcp23xxx_config *config = dev->config;
 	int ret;
 
-	uint8_t nwrite = (config->ngpios == 8) ? 1 : 2;
-	uint16_t port_data = sys_cpu_to_le16(value);
+	uint8_t nwrite = (config->ngpios == 8) ? 2 : 3;
+	uint8_t buf[3];
 
-	ret = i2c_burst_write_dt(&config->bus.i2c, reg, (uint8_t *)&port_data, nwrite);
+	buf[0] = reg;
+	sys_put_le16(value, &buf[1]);
+
+	ret = i2c_write_dt(&config->bus.i2c, buf, nwrite);
 	if (ret < 0) {
 		LOG_ERR("i2c_write failed!");
 		return ret;
@@ -85,13 +88,13 @@ static int mcp230xx_bus_is_ready(const struct device *dev)
 	static struct mcp23xxx_config mcp230xx_##inst##_config = {     \
 		.config = {					       \
 			.port_pin_mask =			       \
-				GPIO_PORT_PIN_MASK_FROM_DT_NODE(DT_DRV_INST(n)), \
+				GPIO_PORT_PIN_MASK_FROM_DT_INST(n),    \
 		},						       \
 		.bus =  \
 	{                                                                                          \
-		.i2c = I2C_DT_SPEC_GET(DT_DRV_INST(n))                                  \
+		.i2c = I2C_DT_SPEC_INST_GET(n)                                          \
 	}, \
-		.ngpios =  DT_PROP(DT_DRV_INST(n), ngpios),		       \
+		.ngpios =  DT_INST_PROP(n, ngpios),			       \
 		.read_fn = mcp230xx_read_port_regs,              \
 		.write_fn = mcp230xx_write_port_regs,              \
 		.bus_fn = mcp230xx_bus_is_ready              \

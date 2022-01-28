@@ -18,7 +18,6 @@
 #include <drivers/dma.h>
 
 #include <drivers/i2s.h>
-#include <drivers/pinmux.h>
 #include <drivers/clock_control.h>
 #include <dt-bindings/clock/imx_ccm.h>
 #include <soc.h>
@@ -69,7 +68,6 @@ struct i2s_mcux_config {
 	uint32_t clk_src;
 	uint32_t clk_pre_div;
 	uint32_t clk_src_div;
-	uint32_t clk_src;
 	uint32_t pll_src;
 	uint32_t pll_lp;
 	uint32_t pll_pd;
@@ -80,7 +78,6 @@ struct i2s_mcux_config {
 	uint32_t tx_channel;
 	clock_control_subsys_t clk_sub_sys;
 	const struct device *ccm_dev;
-	const struct device *pinmux_dev;
 	void (*irq_connect)(const struct device *dev);
 	bool rx_sync_mode;
 	bool tx_sync_mode;
@@ -114,7 +111,7 @@ static inline void i2s_purge_stream_buffers(struct stream *strm,
 
 static void i2s_tx_stream_disable(const struct device *dev)
 {
-	struct i2s_dev_data *dev_data = (struct i2s_dev_data *)dev->data;
+	struct i2s_dev_data *dev_data = dev->data;
 	struct stream *strm = &dev_data->tx;
 	const struct device *dev_dma = dev_data->dev_dma;
 	const struct i2s_mcux_config *dev_cfg = dev->config;
@@ -147,7 +144,7 @@ static void i2s_tx_stream_disable(const struct device *dev)
 
 static void i2s_rx_stream_disable(const struct device *dev)
 {
-	struct i2s_dev_data *dev_data = (struct i2s_dev_data *)dev->data;
+	struct i2s_dev_data *dev_data = dev->data;
 	struct stream *strm = &dev_data->rx;
 	const struct device *dev_dma = dev_data->dev_dma;
 	const struct i2s_mcux_config *dev_cfg = dev->config;
@@ -187,7 +184,7 @@ static void i2s_dma_tx_callback(const struct device *dma_dev,
 	const struct device *dev = (struct device *)arg;
 	const struct i2s_mcux_config *dev_cfg = dev->config;
 	I2S_Type *base = (I2S_Type *)dev_cfg->base;
-	struct i2s_dev_data *dev_data = (struct i2s_dev_data *)dev->data;
+	struct i2s_dev_data *dev_data = dev->data;
 	struct stream *strm = &dev_data->tx;
 	void *buffer = NULL;
 	int ret;
@@ -258,7 +255,7 @@ static void i2s_dma_rx_callback(const struct device *dma_dev,
 	struct device *dev = (struct device *)arg;
 	const struct i2s_mcux_config *dev_cfg = dev->config;
 	I2S_Type *base = (I2S_Type *)dev_cfg->base;
-	struct i2s_dev_data *dev_data = (struct i2s_dev_data *)dev->data;
+	struct i2s_dev_data *dev_data = dev->data;
 	struct stream *strm = &dev_data->rx;
 	void *buffer;
 	int ret;
@@ -329,25 +326,16 @@ static void i2s_dma_rx_callback(const struct device *dma_dev,
 static void enable_mclk_direction(const struct device *dev, bool dir)
 {
 	const struct i2s_mcux_config *dev_cfg = dev->config;
-	const struct device *iomuxgpr_dev = dev_cfg->pinmux_dev;
 	uint32_t offset = dev_cfg->mclk_pin_offset;
 	uint32_t mask = dev_cfg->mclk_pin_mask;
-	uint32_t value = 0;
+	uint32_t *gpr =  (uint32_t *)DT_REG_ADDR(DT_NODELABEL(iomuxcgpr)) + offset;
 
-	if (iomuxgpr_dev == NULL) {
-		LOG_ERR("fail to find pinmux controller\n");
-		return;
-	}
-
-	pinmux_pin_get(iomuxgpr_dev, offset, &value);
 	if (dir) {
-		/* enable MCLK output */
-		value |= mask;
+		*gpr |= mask;
 	} else {
-		/* disable MCLK output */
-		value &= ~mask;
+		*gpr &= ~mask;
 	}
-	pinmux_pin_set(iomuxgpr_dev, offset, value);
+
 }
 
 static void get_mclk_rate(const struct device *dev, uint32_t *mclk)
@@ -372,7 +360,7 @@ static int i2s_mcux_config(const struct device *dev, enum i2s_dir dir,
 {
 	const struct i2s_mcux_config *dev_cfg = dev->config;
 	I2S_Type *base = (I2S_Type *)dev_cfg->base;
-	struct i2s_dev_data *dev_data = (struct i2s_dev_data *)dev->data;
+	struct i2s_dev_data *dev_data = dev->data;
 	sai_transceiver_t config;
 	uint32_t mclk;
 	/*num_words is frame size*/
@@ -625,7 +613,7 @@ static int i2s_mcux_config(const struct device *dev, enum i2s_dir dir,
 const struct i2s_config *i2s_mcux_config_get(const struct device *dev,
 					     enum i2s_dir dir)
 {
-	struct i2s_dev_data *dev_data = (struct i2s_dev_data *)dev->data;
+	struct i2s_dev_data *dev_data = dev->data;
 
 	if (dir == I2S_DIR_RX)
 		return &dev_data->rx.cfg;
@@ -637,7 +625,7 @@ static int i2s_tx_stream_start(const struct device *dev)
 {
 	int ret = 0;
 	void *buffer;
-	struct i2s_dev_data *dev_data = (struct i2s_dev_data *)dev->data;
+	struct i2s_dev_data *dev_data = dev->data;
 	struct stream *strm = &dev_data->tx;
 	uint32_t data_path = strm->start_channel;
 	const struct device *dev_dma = dev_data->dev_dma;
@@ -691,7 +679,7 @@ static int i2s_rx_stream_start(const struct device *dev)
 {
 	int ret = 0;
 	void *buffer;
-	struct i2s_dev_data *dev_data = (struct i2s_dev_data *)dev->data;
+	struct i2s_dev_data *dev_data = dev->data;
 	struct stream *strm = &dev_data->rx;
 	const struct device *dev_dma = dev_data->dev_dma;
 	const struct i2s_mcux_config *dev_cfg = dev->config;
@@ -743,7 +731,7 @@ static int i2s_rx_stream_start(const struct device *dev)
 static int i2s_mcux_trigger(const struct device *dev, enum i2s_dir dir,
 			    enum i2s_trigger_cmd cmd)
 {
-	struct i2s_dev_data *dev_data = (struct i2s_dev_data *)dev->data;
+	struct i2s_dev_data *dev_data = dev->data;
 	struct stream *strm;
 	unsigned int key;
 	int ret = 0;
@@ -841,7 +829,7 @@ static int i2s_mcux_read(const struct device *dev, void **mem_block,
 			 size_t *size)
 {
 	const struct i2s_mcux_config *dev_cfg = dev->config;
-	struct i2s_dev_data *dev_data = (struct i2s_dev_data *)dev->data;
+	struct i2s_dev_data *dev_data = dev->data;
 	struct stream *strm = &dev_data->rx;
 	void *buffer;
 	int ret = 0;
@@ -880,7 +868,7 @@ static int i2s_mcux_read(const struct device *dev, void **mem_block,
 static int i2s_mcux_write(const struct device *dev, void *mem_block,
 			  size_t size)
 {
-	struct i2s_dev_data *dev_data = (struct i2s_dev_data *)dev->data;
+	struct i2s_dev_data *dev_data = dev->data;
 	struct stream *strm = &dev_data->tx;
 	int ret;
 
@@ -961,60 +949,16 @@ static void audio_clock_settings(const struct device *dev)
 {
 	clock_audio_pll_config_t audioPllConfig;
 	const struct i2s_mcux_config *dev_cfg = dev->config;
+	uint32_t clock_name = (uint32_t) dev_cfg->clk_sub_sys;
 
 	/*Clock setting for SAI*/
-#if CONFIG_CLOCK_CONTROL_MCUX_CCM_REV2
-	switch (dev_cfg->clk_sub_sys) {
-	case IMX_CCM_SAI1_CLK:
-		CLOCK_SetRootClockMux(kCLOCK_Root_Sai1, dev_cfg->clk_src);
-		CLOCK_SetRootClockDiv(kCLOCK_Root_Sai1, dev_cfg->clk_src_div);
-		break;
-	case IMX_CCM_SAI2_CLK:
-		CLOCK_SetRootClockMux(kCLOCK_Root_Sai2, dev_cfg->clk_src);
-		CLOCK_SetRootClockDiv(kCLOCK_Root_Sai2, dev_cfg->clk_src_div);
-		break;
-	case IMX_CCM_SAI3_CLK:
-		CLOCK_SetRootClockMux(kCLOCK_Root_Sai3, dev_cfg->clk_src);
-		CLOCK_SetRootClockDiv(kCLOCK_Root_Sai3, dev_cfg->clk_src_div);
-		break;
-	case IMX_CCM_SAI4_CLK:
-		CLOCK_SetRootClockMux(kCLOCK_Root_Sai4, dev_cfg->clk_src);
-		CLOCK_SetRootClockDiv(kCLOCK_Root_Sai4, dev_cfg->clk_src_div);
-		break;
-	default:
-		LOG_ERR("wrong clock system configured");
-		return;
-	}
-#endif
-
-#if CONFIG_CLOCK_CONTROL_MCUX_CCM
-	switch (dev_cfg->clk_sub_sys) {
-	case IMX_CCM_SAI1_CLK:
-		CLOCK_SetMux(kCLOCK_Sai1Mux, dev_cfg->clk_src);
-		CLOCK_SetDiv(kCLOCK_Sai1PreDiv, dev_cfg->clk_pre_div);
-		CLOCK_SetDiv(kCLOCK_Sai1Div, dev_cfg->clk_src_div);
-		break;
-	case IMX_CCM_SAI2_CLK:
-		CLOCK_SetMux(kCLOCK_Sai2Mux, dev_cfg->clk_src);
-		CLOCK_SetDiv(kCLOCK_Sai2PreDiv, dev_cfg->clk_pre_div);
-		CLOCK_SetDiv(kCLOCK_Sai2Div, dev_cfg->clk_src_div);
-		break;
-	case IMX_CCM_SAI3_CLK:
-		CLOCK_SetMux(kCLOCK_Sai2Mux, dev_cfg->clk_src);
-		CLOCK_SetDiv(kCLOCK_Sai2PreDiv, dev_cfg->clk_pre_div);
-		CLOCK_SetDiv(kCLOCK_Sai2Div, dev_cfg->clk_src_div);
-		break;
-	default:
-		LOG_ERR("wrong clock system configured");
-		return;
-	}
-#endif
+	imxrt_audio_codec_pll_init(clock_name, dev_cfg->clk_src,
+				dev_cfg->clk_pre_div, dev_cfg->clk_src_div);
 
 	audioPllConfig.loopDivider = dev_cfg->pll_lp;
 	audioPllConfig.postDivider = dev_cfg->pll_pd;
 	audioPllConfig.numerator = dev_cfg->pll_num;
 	audioPllConfig.denominator = dev_cfg->pll_den;
-	audioPllConfig.src = dev_cfg->pll_src;
 
 	CLOCK_InitAudioPll(&audioPllConfig);
 }
@@ -1023,7 +967,7 @@ static int i2s_mcux_initialize(const struct device *dev)
 {
 	const struct i2s_mcux_config *dev_cfg = dev->config;
 	I2S_Type *base = (I2S_Type *)dev_cfg->base;
-	struct i2s_dev_data *dev_data = (struct i2s_dev_data *)dev->data;
+	struct i2s_dev_data *dev_data = dev->data;
 	uint32_t mclk;
 
 	if (!dev_data->dev_dma) {
@@ -1100,8 +1044,8 @@ static const struct i2s_driver_api i2s_mcux_driver_api = {
 		.clk_src =						\
 			DT_CLOCKS_CELL_BY_IDX(DT_DRV_INST(i2s_id),	\
 				0, bits),				\
-		.clk_pre_div = DT_INST_PROP(i2s_id, pre_div);		\
-		.clk_src_div = DT_INST_PROP(i2s_id, podf);		\
+		.clk_pre_div = DT_INST_PROP(i2s_id, pre_div),		\
+		.clk_src_div = DT_INST_PROP(i2s_id, podf),		\
 		.pll_src =						\
 			DT_PHA_BY_NAME(DT_DRV_INST(i2s_id),		\
 				pll_clocks, src, value),		\
@@ -1122,15 +1066,10 @@ static const struct i2s_driver_api i2s_mcux_driver_api = {
 				pinmuxes, 0, function),			\
 		.mclk_pin_offset =					\
 			DT_PHA_BY_IDX(DT_DRV_INST(i2s_id),		\
-				pinmuxs, 0, pin),			\
+				pinmuxes, 0, pin),			\
 		.clk_sub_sys =	(clock_control_subsys_t)		\
-			DT_CLOCKS_CELL_BY_IDX(DT_DRV_INST(i2s_id),	\
-				0, name),				\
-		.ccm_dev = DEVICE_DT_GET(				\
-				DT_CLOCKS_CTLR(DT_DRV_INST(i2s_id))),	\
-		.pinmux_dev = DEVICE_DT_GET(				\
-				DT_PHANDLE_BY_IDX(DT_DRV_INST(i2s_id),	\
-				pinmuxes, 0)),				\
+			DT_INST_CLOCKS_CELL_BY_IDX(i2s_id, 0, name),	\
+		.ccm_dev = DEVICE_DT_GET(DT_INST_CLOCKS_CTLR(i2s_id)),	\
 		.irq_connect = i2s_irq_connect_##i2s_id,		\
 		.tx_sync_mode =						\
 			   DT_INST_PROP(i2s_id, nxp_tx_sync_mode),	\

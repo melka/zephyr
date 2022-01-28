@@ -202,7 +202,7 @@ extern "C" {
 #define Z_LOG_INTERNAL2(is_user_context, _src_level, ...) do { \
 	if (is_user_context) { \
 		log_from_user(_src_level, __VA_ARGS__); \
-	} else if (IS_ENABLED(CONFIG_LOG_IMMEDIATE)) { \
+	} else if (IS_ENABLED(CONFIG_LOG_MODE_IMMEDIATE)) { \
 		log_string_sync(_src_level, __VA_ARGS__); \
 	} else { \
 		Z_LOG_INTERNAL_X(Z_LOG_NARGS_POSTFIX(__VA_ARGS__), \
@@ -442,7 +442,7 @@ static inline char z_log_minimal_level_to_char(int level)
 	if (is_user_context) { \
 		log_hexdump_from_user(src_level, _str, \
 				      (const char *)_data, _len); \
-	} else if (IS_ENABLED(CONFIG_LOG_IMMEDIATE)) { \
+	} else if (IS_ENABLED(CONFIG_LOG_MODE_IMMEDIATE)) { \
 		log_hexdump_sync(src_level, _str, (const char *)_data, _len); \
 	} else { \
 		log_hexdump(_str, (const char *)_data, _len, src_level); \
@@ -549,7 +549,7 @@ enum log_strdup_action {
 static inline uint32_t log_const_source_id(
 				const struct log_source_const_data *data)
 {
-	return ((uint8_t *)data - (uint8_t *)__log_const_start)/
+	return ((const uint8_t *)data - (uint8_t *)__log_const_start)/
 			sizeof(struct log_source_const_data);
 }
 
@@ -563,7 +563,7 @@ extern struct log_source_dynamic_data __log_dynamic_end[];
 #define LOG_ITEM_DYNAMIC_DATA(_name) UTIL_CAT(log_dynamic_, _name)
 
 #define LOG_INSTANCE_DYNAMIC_DATA(_module_name, _inst) \
-	LOG_ITEM_DYNAMIC_DATA(LOG_INSTANCE_FULL_NAME(_module_name, _inst))
+	LOG_ITEM_DYNAMIC_DATA(Z_LOG_INSTANCE_FULL_NAME(_module_name, _inst))
 
 /** @brief Get index of the log source based on the address of the dynamic data
  *         associated with the source.
@@ -860,7 +860,7 @@ static inline log_arg_t z_log_do_strdup(uint32_t msk, uint32_t idx,
 do {									       \
 	if (is_user_context) {						       \
 		log_generic_from_user(_src_level, _str, _valist);	       \
-	} else if (IS_ENABLED(CONFIG_LOG_IMMEDIATE)) {			       \
+	} else if (IS_ENABLED(CONFIG_LOG_MODE_IMMEDIATE)) {		       \
 		log_generic(_src_level, _str, _valist, _strdup_action);        \
 	} else if (_argnum == 0) {					       \
 		_LOG_INTERNAL_0(_src_level, _str);			       \

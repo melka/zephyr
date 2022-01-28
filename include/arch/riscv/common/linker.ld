@@ -60,7 +60,7 @@
 
 #ifdef CONFIG_RISCV_PMP
 	#define MPU_MIN_SIZE 4
-	#define MPU_MIN_SIZE_ALIGN . = ALIGN(MPU_MIN_SIZE );
+	#define MPU_MIN_SIZE_ALIGN . = ALIGN(MPU_MIN_SIZE);
 	#if defined(CONFIG_MPU_REQUIRES_POWER_OF_TWO_ALIGNMENT)
 		#define MPU_ALIGN(region_size) \
 			. = ALIGN(MPU_MIN_SIZE); \
@@ -228,7 +228,9 @@ SECTIONS
 		 */
 		 . = ALIGN(4);
 		 __bss_start = .;
+#if !defined(CONFIG_USERSPACE)
 		 _image_ram_start = .;
+#endif /* CONFIG_USERSPACE */
 		__kernel_ram_start = .;
 		 *(.sbss)
 		 *(".sbss.*")
@@ -320,7 +322,7 @@ GROUP_START(ITCM)
 	} GROUP_LINK_IN(ITCM AT> ROMABLE_REGION)
 
 	__itcm_size = __itcm_end - __itcm_start;
-	__itcm_rom_start = LOADADDR(_ITCM_SECTION_NAME);
+	__itcm_load_start = LOADADDR(_ITCM_SECTION_NAME);
 
 GROUP_END(ITCM)
 #endif
@@ -355,7 +357,7 @@ GROUP_START(DTCM)
 
 	__dtcm_end = .;
 
-	__dtcm_data_rom_start = LOADADDR(_DTCM_DATA_SECTION_NAME);
+	__dtcm_data_load_start = LOADADDR(_DTCM_DATA_SECTION_NAME);
 
 GROUP_END(DTCM)
 #endif

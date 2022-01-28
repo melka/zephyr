@@ -1,7 +1,6 @@
 /*
  * Copyright (c) 2016 Intel Corporation
  * Copyright (c) 2017 Oticon A/S
- * Copyright (c) 2021 The ZMK Contributors
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -23,37 +22,31 @@
 SECTIONS
  {
 
-	SECTION_PROLOGUE(romstart_snippet,,)
-	{
-/* Located in generated directory. This file is populated by the
- * zephyr_linker_sources() Cmake function.
- */
-#include <snippets-rom-start.ld>
-	}
+SECTION_PROLOGUE(rom_start,,)
+{
+	/* Located in generated directory. This file is populated by the
+	 * zephyr_linker_sources() Cmake function.
+	 */
+	#include <snippets-rom-start.ld>
+} GROUP_LINK_IN(ROMABLE_REGION)
 
 #include <linker/common-rom.ld>
 
-	SECTION_PROLOGUE(rodata_snippet,,)
-	{
+SECTION_PROLOGUE(_RODATA_SECTION_NAME,,)
+{
+	/* Located in generated directory. This file is populated by the
+	 * zephyr_linker_sources() Cmake function.
+	 */
+	#include <snippets-rodata.ld>
+} GROUP_LINK_IN(ROMABLE_REGION)
 
-/* Located in generated directory. This file is populated by the
- * zephyr_linker_sources() Cmake function.
- */
-#include <snippets-rodata.ld>
-	}
-} INSERT AFTER .rodata;
-
-SECTIONS
-  {
-
-	SECTION_DATA_PROLOGUE(data_snippet,,)
-	{
-
-/* Located in generated directory. This file is populated by the
- * zephyr_linker_sources() Cmake function.
- */
-#include <snippets-rwdata.ld>
-	}
+SECTION_DATA_PROLOGUE(_DATA_SECTION_NAME,,)
+{
+	/* Located in generated directory. This file is populated by the
+	 * zephyr_linker_sources() Cmake function.
+	 */
+	#include <snippets-rwdata.ld>
+} GROUP_DATA_LINK_IN(RAMABLE_REGION, ROMABLE_REGION)
 
 #include <linker/common-ram.ld>
 
@@ -71,13 +64,13 @@ SECTIONS
 
 __data_region_end = .;
 
-	SECTION_DATA_PROLOGUE(noinit_snippet,,)
-	{
-/* Located in generated directory. This file is populated by the
- * zephyr_linker_sources() Cmake function.
- */
-#include <snippets-noinit.ld>
-	}
+SECTION_DATA_PROLOGUE(_NOINIT_SECTION_NAME,,)
+{
+	/* Located in generated directory. This file is populated by the
+	 * zephyr_linker_sources() Cmake function.
+	 */
+	#include <snippets-noinit.ld>
+} GROUP_LINK_IN(RAMABLE_REGION)
 
 /* Located in generated directory. This file is populated by the
  * zephyr_linker_sources() Cmake function.

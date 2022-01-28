@@ -100,13 +100,13 @@
 			#size-cells = <1>;
 		};
 
-		gpt1: gpt@401ec000 {
-			compatible = "nxp,imx-gpt";
+		/* GPT1 is used for the hardware timer, not as a standard counter */
+		gpt_hw_timer: gpt@401ec000 {
+			compatible = "nxp,gpt-hw-timer";
 			reg = <0x401ec000 0x4000>;
 			interrupts = <100 0>;
-			gptfreq = <25000000>;
-			clocks = <&ccm IMX_CCM_GPT_CLK 0x6C 20>;
-			label = "GPT1";
+			label = "GPT_HW_TIMER";
+			status = "disabled";
 		};
 
 		gpt2: gpt@401f0000 {
@@ -573,6 +573,7 @@
 			interrupt-names = "COMMON";
 			status = "disabled";
 			label = "ETH_0";
+			phy-addr = <0>;
 			ptp {
 				compatible = "nxp,kinetis-ptp";
 				status = "disabled";
@@ -675,8 +676,6 @@
 			sjw = <1>;
 			sample-point = <875>;
 			status = "disabled";
-			#address-cells = <1>;
-			#size-cells = <0>;
 		};
 
 		flexcan2: can@401d4000 {
@@ -690,8 +689,6 @@
 			sjw = <1>;
 			sample-point = <875>;
 			status = "disabled";
-			#address-cells = <1>;
-			#size-cells = <0>;
 		};
 
 		flexcan3: can@401d8000 {
@@ -705,8 +702,6 @@
 			sjw = <1>;
 			sample-point = <875>;
 			status = "disabled";
-			#address-cells = <1>;
-			#size-cells = <0>;
 		};
 
 		wdog0: wdog@400b8000 {
@@ -822,4 +817,12 @@
 
 &nvic {
 	arm,num-irq-priority-bits = <4>;
+};
+
+&systick {
+	/*
+	 * RT10xx relies by default on the GPT Timer for system clock
+	 * implementation, so the SysTick node should not be enabled.
+	 */
+	status = "disabled";
 };

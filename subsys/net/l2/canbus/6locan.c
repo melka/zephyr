@@ -430,10 +430,10 @@ static void canbus_set_frame_addr_pkt(struct zcan_frame *frame,
 	canbus_set_frame_addr(frame, dest_addr, &src_addr, mcast);
 }
 
-static void canbus_fc_send_cb(uint32_t err_flags, void *arg)
+static void canbus_fc_send_cb(int error, void *arg)
 {
-	if (err_flags) {
-		NET_ERR("Sending FC frame failed: %d", err_flags);
+	if (error != 0) {
+		NET_ERR("Sending FC frame failed: %d", error);
 	}
 }
 
@@ -688,7 +688,7 @@ static enum net_verdict canbus_process_sf(struct net_pkt *pkt)
 	return canbus_finish_pkt(pkt);
 }
 
-static void canbus_tx_frame_isr(uint32_t err_flags, void *arg)
+static void canbus_tx_frame_isr(int error, void *arg)
 {
 	struct net_pkt *pkt = (struct net_pkt *)arg;
 	struct canbus_isotp_tx_ctx *ctx = pkt->canbus_tx_ctx;
@@ -1528,14 +1528,14 @@ static inline int canbus_send_dad_request(const struct device *net_can_dev,
 	return 0;
 }
 
-static void canbus_send_dad_resp_cb(uint32_t err_flags, void *cb_arg)
+static void canbus_send_dad_resp_cb(int error, void *cb_arg)
 {
 	static uint8_t fail_cnt;
 	struct k_work *work = (struct k_work *)cb_arg;
 
-	if (err_flags) {
-		NET_ERR("Failed to send dad response [%u]", err_flags);
-		if (err_flags != -ENETDOWN &&
+	if (error != 0) {
+		NET_ERR("Failed to send dad response [%u]", error);
+		if (error != -ENETDOWN &&
 		    fail_cnt < NET_CAN_DAD_SEND_RETRY) {
 			k_work_submit_to_queue(&net_canbus_workq, work);
 		}
@@ -1572,12 +1572,12 @@ static inline void canbus_send_dad_response(struct k_work *item)
 	}
 }
 
-static inline void canbus_detach_filter(const struct device *net_can_dev,
-					int filter_id)
+static inline void canbus_remove_rx_filter(const struct device *net_can_dev,
+					   int filter_id)
 {
 	const struct net_can_api *api = net_can_dev->api;
 
-	api->detach_filter(net_can_dev, filter_id);
+	api->remove_rx_filter(net_can_dev, filter_id);
 }
 
 static void canbus_dad_resp_cb(struct zcan_frame *frame, void *arg)
@@ -1588,9 +1588,9 @@ static void canbus_dad_resp_cb(struct zcan_frame *frame, void *arg)
 }
 
 static inline
-int canbus_attach_dad_resp_filter(const struct device *net_can_dev,
-				  struct net_canbus_lladdr *ll_addr,
-				  struct k_sem *dad_sem)
+int canbus_add_dad_resp_filter(const struct device *net_can_dev,
+			       struct net_canbus_lladdr *ll_addr,
+			       struct k_sem *dad_sem)
 {
 	const struct net_can_api *api = net_can_dev->api;
 	struct zcan_filter filter = {
@@ -1603,10 +1603,10 @@ int canbus_attach_dad_resp_filter(const struct device *net_can_dev,
 
 	filter.id = canbus_addr_to_id(NET_CAN_DAD_ADDR, ll_addr->addr);
 
-	filter_id = api->attach_filter(net_can_dev, canbus_dad_resp_cb,
+	filter_id = api->add_rx_filter(net_can_dev, canbus_dad_resp_cb,
 				       dad_sem, &filter);
 	if (filter_id == -ENOSPC) {
-		NET_ERR("Can't attach dad response filter");
+		NET_ERR("Can't add dad response filter");
 	}
 
 	return filter_id;
@@ -1619,9 +1619,9 @@ static void canbus_dad_request_cb(struct zcan_frame *frame, void *arg)
 	k_work_submit_to_queue(&net_canbus_workq, work);
 }
 
-static inline int canbus_attach_dad_filter(const struct device *net_can_dev,
-					   struct net_canbus_lladdr *ll_addr,
-					   struct k_work *dad_work)
+static inline int canbus_add_dad_filter(const struct device *net_can_dev,
+					struct net_canbus_lladdr *ll_addr,
+					struct k_work *dad_work)
 {
 	const struct net_can_api *api = net_can_dev->api;
 	struct zcan_filter filter = {
@@ -1634,10 +1634,10 @@ static inline int canbus_attach_dad_filter(const struct device *net_can_dev,
 
 	filter.id = canbus_addr_to_id(ll_addr->addr, 0);
 
-	filter_id = api->attach_filter(net_can_dev, canbus_dad_request_cb,
+	filter_id = api->add_rx_filter(net_can_dev, canbus_dad_request_cb,
 				       dad_work, &filter);
 	if (filter_id == -ENOSPC) {
-		NET_ERR("Can't attach dad filter");
+		NET_ERR("Can't add dad filter");
 	}
 
 	return filter_id;
@@ -1665,18 +1665,18 @@ static inline int canbus_init_ll_addr(struct net_if *iface)
 	net_if_set_link_addr(iface, (uint8_t *)&ctx->ll_addr, sizeof(ll_addr),
 			     NET_LINK_CANBUS);
 
-	dad_resp_filter_id = canbus_attach_dad_resp_filter(net_can_dev, &ll_addr,
-							   &dad_sem);
+	dad_resp_filter_id = canbus_add_dad_resp_filter(net_can_dev, &ll_addr,
+							&dad_sem);
 	if (dad_resp_filter_id < 0) {
 		return -EIO;
 	}
 	/*
-	 * Attach this filter now to defend this address instantly.
+	 * Add this filter now to defend this address instantly.
 	 * This filter is not called for own DAD because loopback is not
 	 * enabled.
 	 */
-	ctx->dad_filter_id = canbus_attach_dad_filter(net_can_dev, &ll_addr,
-						      &ctx->dad_work);
+	ctx->dad_filter_id = canbus_add_dad_filter(net_can_dev, &ll_addr,
+						   &ctx->dad_work);
 	if (ctx->dad_filter_id < 0) {
 		ret = -EIO;
 		goto dad_err;
@@ -1690,7 +1690,7 @@ static inline int canbus_init_ll_addr(struct net_if *iface)
 	}
 
 	ret = k_sem_take(&dad_sem, NET_CAN_DAD_TIMEOUT);
-	canbus_detach_filter(net_can_dev, dad_resp_filter_id);
+	canbus_remove_rx_filter(net_can_dev, dad_resp_filter_id);
 	dad_resp_filter_id = CAN_NET_FILTER_NOT_SET;
 
 	if (ret != -EAGAIN) {
@@ -1704,12 +1704,12 @@ static inline int canbus_init_ll_addr(struct net_if *iface)
 dad_err:
 	net_if_set_link_addr(iface, NULL, 0, NET_LINK_CANBUS);
 	if (ctx->dad_filter_id != CAN_NET_FILTER_NOT_SET) {
-		canbus_detach_filter(net_can_dev, ctx->dad_filter_id);
+		canbus_remove_rx_filter(net_can_dev, ctx->dad_filter_id);
 		ctx->dad_filter_id = CAN_NET_FILTER_NOT_SET;
 	}
 
 	if (dad_resp_filter_id != CAN_NET_FILTER_NOT_SET) {
-		canbus_detach_filter(net_can_dev, dad_resp_filter_id);
+		canbus_remove_rx_filter(net_can_dev, dad_resp_filter_id);
 	}
 
 	return ret;
@@ -1846,7 +1846,7 @@ static int canbus_enable(struct net_if *iface, bool state)
 
 	} else {
 		if (ctx->dad_filter_id != CAN_NET_FILTER_NOT_SET) {
-			canbus_detach_filter(net_can_dev, ctx->dad_filter_id);
+			canbus_remove_rx_filter(net_can_dev, ctx->dad_filter_id);
 		}
 	}
 

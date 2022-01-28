@@ -16,7 +16,7 @@ config USB_DC_HAS_HS_SUPPORT
 	  USB device controller supports high speed.
 
 config USB_DEVICE_REMOTE_WAKEUP
-	bool
+	bool "Enable remote wakeup support"
 	help
 	  USB device controller supports remote wakeup feature.
 
@@ -88,7 +88,7 @@ config USB_NRFX
 	depends on HAS_HW_NRF_USBD
 	select NRFX_USBD
 	select NRFX_POWER
-	select USB_DEVICE_REMOTE_WAKEUP
+	imply USB_DEVICE_REMOTE_WAKEUP
 	help
 	  nRF USB Device Controller Driver
 
@@ -148,6 +148,14 @@ config USB_DC_NXP_LPCIP3511
 	  LPC USB Device Controller Driver.
 
 endchoice
+
+config USB_DC_MSG_QUEUE_LEN
+	int
+	default 10
+	help
+	  Maximum number of messages USB device controller interrupt can queue
+	  for callback thread
+
 
 endif # USB_MCUX
 

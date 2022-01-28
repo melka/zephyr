@@ -256,18 +256,16 @@ extern "C" {
  * @brief Writes an formatted string to the log.
  *
  * @details Conditionally compiled (see CONFIG_LOG_PRINTK). Function provides
- * printk functionality. It is inefficient compared to standard logging
- * because string formatting is performed in the call context and not deferred
- * to the log processing context (@ref log_process).
+ * printk functionality.
+ *
+ * It is less efficient compared to standard logging because static packaging
+ * cannot be used. When CONFIG_LOG1 is used string formatting is performed in the
+ * call context and not deferred to the log processing context (@ref log_process).
  *
  * @param fmt Formatted string to output.
  * @param ap  Variable parameters.
  */
-void z_log_printk(const char *fmt, va_list ap);
-static inline void log_printk(const char *fmt, va_list ap)
-{
-	z_log_printk(fmt, ap);
-}
+void z_log_vprintk(const char *fmt, va_list ap);
 
 /** @brief Copy transient string to a buffer from internal, logger pool.
  *
@@ -316,13 +314,13 @@ static inline char *log_strdup(const char *str)
 /* Return first argument */
 #define _LOG_ARG1(arg1, ...) arg1
 
-#define _LOG_MODULE_CONST_DATA_CREATE(_name, _level)			     \
-	IF_ENABLED(LOG_IN_CPLUSPLUS, (extern))				     \
-	const struct log_source_const_data LOG_ITEM_CONST_DATA(_name)	     \
-	__attribute__ ((section("." STRINGIFY(LOG_ITEM_CONST_DATA(_name))))) \
-	__attribute__((used)) = {					     \
-		.name = STRINGIFY(_name),				     \
-		.level = _level						     \
+#define _LOG_MODULE_CONST_DATA_CREATE(_name, _level)			       \
+	IF_ENABLED(LOG_IN_CPLUSPLUS, (extern))				       \
+	const struct log_source_const_data Z_LOG_ITEM_CONST_DATA(_name)	       \
+	__attribute__ ((section("." STRINGIFY(Z_LOG_ITEM_CONST_DATA(_name))))) \
+	__attribute__((used)) = {					       \
+		.name = STRINGIFY(_name),				       \
+		.level = _level						       \
 	}
 
 #define _LOG_MODULE_DYNAMIC_DATA_CREATE(_name)				\
@@ -409,14 +407,14 @@ static inline char *log_strdup(const char *str)
  */
 #define LOG_MODULE_DECLARE(...)						      \
 	extern const struct log_source_const_data			      \
-			LOG_ITEM_CONST_DATA(GET_ARG_N(1, __VA_ARGS__));	      \
+			Z_LOG_ITEM_CONST_DATA(GET_ARG_N(1, __VA_ARGS__));     \
 	extern struct log_source_dynamic_data				      \
 			LOG_ITEM_DYNAMIC_DATA(GET_ARG_N(1, __VA_ARGS__));     \
 									      \
 	static const struct log_source_const_data *			      \
 		__log_current_const_data __unused =			      \
 			_LOG_LEVEL_RESOLVE(__VA_ARGS__) ?		      \
-			&LOG_ITEM_CONST_DATA(GET_ARG_N(1, __VA_ARGS__)) :     \
+			&Z_LOG_ITEM_CONST_DATA(GET_ARG_N(1, __VA_ARGS__)) :   \
 			NULL;						      \
 									      \
 	static struct log_source_dynamic_data *				      \

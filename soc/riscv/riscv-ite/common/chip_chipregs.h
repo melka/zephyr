@@ -1,4 +1,4 @@
-/*
+﻿/*
  * Copyright (c) 2020 ITE Corporation. All Rights Reserved.
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -1652,6 +1652,11 @@ enum chip_pll_mode {
 #define IT83XX_I2C_RAMH2A(base)		ECREG(base+0x50)
 #define IT83XX_I2C_CMD_ADDH2(base)	ECREG(base+0x52)
 
+/* SMBus/I2C register fields */
+/* 0x07: Time Out Status */
+#define IT8XXX2_I2C_SCL_IN		BIT(2)
+#define IT8XXX2_I2C_SDA_IN		BIT(0)
+
 /* --- General Control (GCTRL) --- */
 #define IT83XX_GCTRL_BASE 0x00F02000
 
@@ -1847,6 +1852,8 @@ struct gctrl_it8xxx2_regs {
 #define IT8XXX2_GCTRL_LRSIWR		BIT(2)
 #define IT8XXX2_GCTRL_LRSIPWRSWTR	BIT(1)
 #define IT8XXX2_GCTRL_LRSIPGWR		BIT(0)
+/* 0x46: Pin Multi-function Enable 3 */
+#define IT8XXX2_GCTRL_SMB3PSEL		BIT(6)
 /* 0x4B: ETWD and UART Control */
 #define IT8XXX2_GCTRL_ETWD_HW_RST_EN	BIT(0)
 /* Accept Port 80h Cycle */
@@ -1868,6 +1875,24 @@ struct gctrl_it8xxx2_regs {
 #define IT8XXX2_GCTRL_HGRST		BIT(3)
 /* bit[2] = 1: Enable global reset. */
 #define IT8XXX2_GCTRL_GRST		BIT(2)
+
+/**
+ *
+ * (22xxh) Battery-backed SRAM (BRAM) registers
+ *
+ */
+#ifndef __ASSEMBLER__
+/* Battery backed RAM indices. */
+#define BRAM_MAGIC_FIELD_OFFSET 0xbc
+enum bram_indices {
+
+	/* This field is used to indicate BRAM is valid or not. */
+	BRAM_IDX_VALID_FLAGS0 = BRAM_MAGIC_FIELD_OFFSET,
+	BRAM_IDX_VALID_FLAGS1,
+	BRAM_IDX_VALID_FLAGS2,
+	BRAM_IDX_VALID_FLAGS3
+};
+#endif /* !__ASSEMBLER__ */
 
 #ifndef __ASSEMBLER__
 /*

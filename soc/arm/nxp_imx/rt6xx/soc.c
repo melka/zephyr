@@ -172,11 +172,7 @@ static void usb_device_clock_init(void)
 #endif
 
 /**
- *
  * @brief Initialize the system clock
- *
- * @return N/A
- *
  */
 static ALWAYS_INLINE void clock_init(void)
 {
@@ -289,6 +285,11 @@ static ALWAYS_INLINE void clock_init(void)
 
 void imxrt_usdhc_pinmux(uint16_t nusdhc, bool init,
 	uint32_t speed, uint32_t strength)
+{
+
+}
+
+void imxrt_usdhc_dat3_pull(bool pullup)
 {
 
 }

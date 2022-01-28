@@ -58,8 +58,10 @@ static int comp_data_status(struct bt_mesh_model *model,
 			*(param->page) = page;
 		}
 
-		to_copy = MIN(net_buf_simple_tailroom(param->comp), buf->len);
-		net_buf_simple_add_mem(param->comp, buf->data, to_copy);
+		if (param->comp) {
+			to_copy = MIN(net_buf_simple_tailroom(param->comp), buf->len);
+			net_buf_simple_add_mem(param->comp, buf->data, to_copy);
+		}
 
 		bt_mesh_msg_ack_ctx_rx(&cli->ack_ctx);
 	}
@@ -265,22 +267,25 @@ static int net_key_list(struct bt_mesh_model *model,
 	if (bt_mesh_msg_ack_ctx_match(&cli->ack_ctx, OP_NET_KEY_LIST, ctx->addr,
 				      (void **)&param)) {
 
-		for (i = 0; i < *param->key_cnt && buf->len >= 3; i += 2) {
-			key_idx_unpack(buf, &param->keys[i],
-				       &param->keys[i + 1]);
-		}
+		if (param->keys && param->key_cnt) {
 
-		if (i < *param->key_cnt && buf->len >= 2) {
-			param->keys[i++] =
-				net_buf_simple_pull_le16(buf) & 0xfff;
-		}
+			for (i = 0; i < *param->key_cnt && buf->len >= 3; i += 2) {
+				key_idx_unpack(buf, &param->keys[i],
+						&param->keys[i + 1]);
+			}
 
-		if (buf->len > 0) {
-			BT_ERR("The message size for the application opcode is incorrect.");
-			return -EMSGSIZE;
-		}
+			if (i < *param->key_cnt && buf->len >= 2) {
+				param->keys[i++] =
+					net_buf_simple_pull_le16(buf) & 0xfff;
+			}
 
-		*param->key_cnt = i;
+			if (buf->len > 0) {
+				BT_ERR("The message size for the application opcode is incorrect.");
+				return -EMSGSIZE;
+			}
+
+			*param->key_cnt = i;
+		}
 
 		bt_mesh_msg_ack_ctx_rx(&cli->ack_ctx);
 	}
@@ -378,17 +383,21 @@ static int app_key_list(struct bt_mesh_model *model,
 			return -ENOENT;
 		}
 
-		for (i = 0; i < *param->key_cnt && buf->len >= 3; i += 2) {
-			key_idx_unpack(buf, &param->keys[i],
-				       &param->keys[i + 1]);
+		if (param->keys && param->key_cnt) {
+
+			for (i = 0; i < *param->key_cnt && buf->len >= 3; i += 2) {
+				key_idx_unpack(buf, &param->keys[i],
+						&param->keys[i + 1]);
+			}
+
+			if (buf->len > 0U) {
+				BT_ERR("The message size for the application opcode is incorrect.");
+				return -EMSGSIZE;
+			}
+
+			*param->key_cnt = i;
 		}
 
-		if (buf->len > 0U) {
-			BT_ERR("The message size for the application opcode is incorrect.");
-			return -EMSGSIZE;
-		}
-
-		*param->key_cnt = i;
 		if (param->status) {
 			*param->status = status;
 		}
@@ -487,8 +496,9 @@ static int mod_member_list_handle(struct bt_mesh_msg_ctx *ctx,
 
 	if (bt_mesh_msg_ack_ctx_match(&cli->ack_ctx, op, ctx->addr,
 				      (void **)&param)) {
+
 		if (param->elem_addr != elem_addr || param->mod_id != mod_id ||
-		    (vnd && param->cid != cid)) {
+				(vnd && param->cid != cid)) {
 			BT_WARN("Model Member List parameters did not match");
 			return -ENOENT;
 		}
@@ -498,11 +508,15 @@ static int mod_member_list_handle(struct bt_mesh_msg_ctx *ctx,
 			return -EMSGSIZE;
 		}
 
-		for (i = 0; i < *param->member_cnt && buf->len; i++) {
-			param->members[i] = net_buf_simple_pull_le16(buf);
+		if (param->member_cnt && param->members) {
+
+			for (i = 0; i < *param->member_cnt && buf->len; i++) {
+				param->members[i] = net_buf_simple_pull_le16(buf);
+			}
+
+			*param->member_cnt = i;
 		}
 
-		*param->member_cnt = i;
 		if (param->status) {
 			*param->status = status;
 		}
@@ -939,6 +953,11 @@ int bt_mesh_cfg_comp_data_get(uint16_t net_idx, uint16_t addr, uint8_t page,
 		return err;
 	}
 
+	if (!rsp && !comp) {
+		bt_mesh_msg_ack_ctx_clear(&cli->ack_ctx);
+		return 0;
+	}
+
 	return bt_mesh_msg_ack_ctx_wait(&cli->ack_ctx, K_MSEC(msg_timeout));
 }
 
@@ -966,6 +985,11 @@ static int get_state_u8(uint16_t net_idx, uint16_t addr, uint32_t op, uint32_t r
 		BT_ERR("model_send() failed (err %d)", err);
 		bt_mesh_msg_ack_ctx_clear(&cli->ack_ctx);
 		return err;
+	}
+
+	if (!val) {
+		bt_mesh_msg_ack_ctx_clear(&cli->ack_ctx);
+		return 0;
 	}
 
 	return bt_mesh_msg_ack_ctx_wait(&cli->ack_ctx, K_MSEC(msg_timeout));
@@ -996,6 +1020,11 @@ static int set_state_u8(uint16_t net_idx, uint16_t addr, uint32_t op, uint32_t r
 		BT_ERR("model_send() failed (err %d)", err);
 		bt_mesh_msg_ack_ctx_clear(&cli->ack_ctx);
 		return err;
+	}
+
+	if (!val) {
+		bt_mesh_msg_ack_ctx_clear(&cli->ack_ctx);
+		return 0;
 	}
 
 	return bt_mesh_msg_ack_ctx_wait(&cli->ack_ctx, K_MSEC(msg_timeout));
@@ -1038,6 +1067,11 @@ int bt_mesh_cfg_krp_get(uint16_t net_idx, uint16_t addr, uint16_t key_net_idx,
 		return err;
 	}
 
+	if (!status && !phase) {
+		bt_mesh_msg_ack_ctx_clear(&cli->ack_ctx);
+		return 0;
+	}
+
 	return bt_mesh_msg_ack_ctx_wait(&cli->ack_ctx, K_MSEC(msg_timeout));
 }
 
@@ -1071,6 +1105,11 @@ int bt_mesh_cfg_krp_set(uint16_t net_idx, uint16_t addr, uint16_t key_net_idx,
 		BT_ERR("model_send() failed (err %d)", err);
 		bt_mesh_msg_ack_ctx_clear(&cli->ack_ctx);
 		return err;
+	}
+
+	if (!status && !phase) {
+		bt_mesh_msg_ack_ctx_clear(&cli->ack_ctx);
+		return 0;
 	}
 
 	return bt_mesh_msg_ack_ctx_wait(&cli->ack_ctx, K_MSEC(msg_timeout));
@@ -1150,10 +1189,6 @@ int bt_mesh_cfg_relay_get(uint16_t net_idx, uint16_t addr, uint8_t *status,
 	};
 	int err;
 
-	if (!status || !transmit) {
-		return -EINVAL;
-	}
-
 	err = cli_prepare(&param, OP_RELAY_STATUS, addr);
 	if (err) {
 		return err;
@@ -1166,6 +1201,11 @@ int bt_mesh_cfg_relay_get(uint16_t net_idx, uint16_t addr, uint8_t *status,
 		BT_ERR("model_send() failed (err %d)", err);
 		bt_mesh_msg_ack_ctx_clear(&cli->ack_ctx);
 		return err;
+	}
+
+	if (!status && !transmit) {
+		bt_mesh_msg_ack_ctx_clear(&cli->ack_ctx);
+		return 0;
 	}
 
 	return bt_mesh_msg_ack_ctx_wait(&cli->ack_ctx, K_MSEC(msg_timeout));
@@ -1201,6 +1241,11 @@ int bt_mesh_cfg_relay_set(uint16_t net_idx, uint16_t addr, uint8_t new_relay,
 		BT_ERR("model_send() failed (err %d)", err);
 		bt_mesh_msg_ack_ctx_clear(&cli->ack_ctx);
 		return err;
+	}
+
+	if (!status && !transmit) {
+		bt_mesh_msg_ack_ctx_clear(&cli->ack_ctx);
+		return 0;
 	}
 
 	return bt_mesh_msg_ack_ctx_wait(&cli->ack_ctx, K_MSEC(msg_timeout));
@@ -1315,6 +1360,11 @@ int bt_mesh_cfg_net_key_get(uint16_t net_idx, uint16_t addr, uint16_t *keys,
 		BT_ERR("model_send() failed (err %d)", err);
 		bt_mesh_msg_ack_ctx_clear(&cli->ack_ctx);
 		return err;
+	}
+
+	if (!keys || !key_cnt) {
+		bt_mesh_msg_ack_ctx_clear(&cli->ack_ctx);
+		return 0;
 	}
 
 	return bt_mesh_msg_ack_ctx_wait(&cli->ack_ctx, K_MSEC(msg_timeout));
@@ -1512,6 +1562,11 @@ int bt_mesh_cfg_app_key_get(uint16_t net_idx, uint16_t addr, uint16_t key_net_id
 		BT_ERR("model_send() failed (err %d)", err);
 		bt_mesh_msg_ack_ctx_clear(&cli->ack_ctx);
 		return err;
+	}
+
+	if (!status && (!keys || !key_cnt)) {
+		bt_mesh_msg_ack_ctx_clear(&cli->ack_ctx);
+		return 0;
 	}
 
 	return bt_mesh_msg_ack_ctx_wait(&cli->ack_ctx, K_MSEC(msg_timeout));
@@ -1743,6 +1798,11 @@ static int mod_member_list_get(uint32_t op, uint32_t expect_op, uint16_t net_idx
 		return err;
 	}
 
+	if (!status && (!apps || !app_cnt)) {
+		bt_mesh_msg_ack_ctx_clear(&cli->ack_ctx);
+		return 0;
+	}
+
 	return bt_mesh_msg_ack_ctx_wait(&cli->ack_ctx, K_MSEC(msg_timeout));
 }
 
@@ -1955,7 +2015,7 @@ static int mod_sub_va(uint32_t op, uint16_t net_idx, uint16_t addr, uint16_t ele
 		return err;
 	}
 
-	if (!status) {
+	if (!status && !virt_addr) {
 		bt_mesh_msg_ack_ctx_clear(&cli->ack_ctx);
 		return 0;
 	}
@@ -2089,7 +2149,7 @@ static int mod_pub_get(uint16_t net_idx, uint16_t addr, uint16_t elem_addr,
 		return err;
 	}
 
-	if (!status) {
+	if (!status && !pub) {
 		bt_mesh_msg_ack_ctx_clear(&cli->ack_ctx);
 		return 0;
 	}
@@ -2230,6 +2290,10 @@ int bt_mesh_cfg_mod_pub_set(uint16_t net_idx, uint16_t addr, uint16_t elem_addr,
 			    uint16_t mod_id, struct bt_mesh_cfg_mod_pub *pub,
 			    uint8_t *status)
 {
+	if (!pub) {
+		return -EINVAL;
+	}
+
 	if (pub->uuid) {
 		return mod_pub_va_set(net_idx, addr, elem_addr, mod_id, CID_NVAL, pub, status);
 	} else {
@@ -2241,6 +2305,10 @@ int bt_mesh_cfg_mod_pub_set_vnd(uint16_t net_idx, uint16_t addr, uint16_t elem_a
 				uint16_t mod_id, uint16_t cid, struct bt_mesh_cfg_mod_pub *pub,
 				uint8_t *status)
 {
+	if (!pub) {
+		return -EINVAL;
+	}
+
 	if (cid == CID_NVAL) {
 		return -EINVAL;
 	}
@@ -2267,6 +2335,10 @@ int bt_mesh_cfg_hb_sub_set(uint16_t net_idx, uint16_t addr,
 		.sub = sub,
 	};
 	int err;
+
+	if (!sub) {
+		return -EINVAL;
+	}
 
 	err = cli_prepare(&param, OP_HEARTBEAT_SUB_STATUS, addr);
 	if (err) {
@@ -2323,7 +2395,7 @@ int bt_mesh_cfg_hb_sub_get(uint16_t net_idx, uint16_t addr,
 		return err;
 	}
 
-	if (!status) {
+	if (!status && !sub) {
 		bt_mesh_msg_ack_ctx_clear(&cli->ack_ctx);
 		return 0;
 	}
@@ -2345,6 +2417,10 @@ int bt_mesh_cfg_hb_pub_set(uint16_t net_idx, uint16_t addr,
 		.status = status,
 	};
 	int err;
+
+	if (!pub) {
+		return -EINVAL;
+	}
 
 	err = cli_prepare(&param, OP_HEARTBEAT_PUB_STATUS, addr);
 	if (err) {
@@ -2404,7 +2480,7 @@ int bt_mesh_cfg_hb_pub_get(uint16_t net_idx, uint16_t addr,
 		return err;
 	}
 
-	if (!status) {
+	if (!status && !pub) {
 		bt_mesh_msg_ack_ctx_clear(&cli->ack_ctx);
 		return 0;
 	}
@@ -2446,7 +2522,7 @@ int bt_mesh_cfg_node_identity_set(uint16_t net_idx, uint16_t addr,
 		return err;
 	}
 
-	if (!status) {
+	if (!status && !identity) {
 		bt_mesh_msg_ack_ctx_clear(&cli->ack_ctx);
 		return 0;
 	}
@@ -2487,7 +2563,7 @@ int bt_mesh_cfg_node_identity_get(uint16_t net_idx, uint16_t addr,
 		return err;
 	}
 
-	if (!status) {
+	if (!status && !identity) {
 		bt_mesh_msg_ack_ctx_clear(&cli->ack_ctx);
 		return 0;
 	}
@@ -2524,6 +2600,11 @@ int bt_mesh_cfg_lpn_timeout_get(uint16_t net_idx, uint16_t addr,
 		BT_ERR("model_send() failed (err %d)", err);
 		bt_mesh_msg_ack_ctx_clear(&cli->ack_ctx);
 		return err;
+	}
+
+	if (!polltimeout) {
+		bt_mesh_msg_ack_ctx_clear(&cli->ack_ctx);
+		return 0;
 	}
 
 	return bt_mesh_msg_ack_ctx_wait(&cli->ack_ctx, K_MSEC(msg_timeout));
