@@ -14,7 +14,7 @@ jobs:
     runs-on: zephyr_runner
     needs: clang-build-prep
     container:
-      image: zephyrprojectrtos/ci:v0.21.0
+      image: zephyrprojectrtos/ci:v0.18.4
       options: '--entrypoint /bin/bash'
       volumes:
         - /home/runners/zephyrproject:/github/cache/zephyrproject
@@ -23,7 +23,7 @@ jobs:
       matrix:
         platform: ["native_posix"]
     env:
-      ZEPHYR_SDK_INSTALL_DIR: /opt/toolchains/zephyr-sdk-0.13.2
+      ZEPHYR_SDK_INSTALL_DIR: /opt/toolchains/zephyr-sdk-0.13.1
       CLANG_ROOT_DIR: /usr/lib/llvm-12
       COMMIT_RANGE: ${{ github.event.pull_request.base.sha }}..${{ github.event.pull_request.head.sha }}
       BASE_REF: ${{ github.base_ref }}
@@ -46,7 +46,6 @@ jobs:
           echo "$HOME/.local/bin" >> $GITHUB_PATH
           git config --global user.email "bot@zephyrproject.org"
           git config --global user.name "Zephyr Bot"
-          rm -fr ".git/rebase-apply"
           git rebase origin/${BASE_REF}
           git log  --pretty=oneline | head -n 10
           west init -l . || true
@@ -56,7 +55,7 @@ jobs:
           # So first retry to update, if that does not work, remove all modules
           # and start over. (Workaround until we implement more robust module
           # west caching).
-          west update --path-cache /github/cache/zephyrproject 2>&1 1> west.log || west update --path-cache /github/cache/zephyrproject 2>&1 1> west2.log || ( rm -rf ../modules ../bootloader ../tools && west update --path-cache /github/cache/zephyrproject)
+          west update --path-cache /github/cache/zephyrproject 2>&1 1> west.log || west update --path-cache /github/cache/zephyrproject 2>&1 1> west2.log || ( rm -rf ../modules && west update --path-cache /github/cache/zephyrproject)
 
       - name: Check Environment
         run: |
@@ -129,20 +128,6 @@ jobs:
         uses: actions/download-artifact@v2
         with:
           path: artifacts
-      - name: Merge Test Results
-        run: |
-          pip3 install junitparser junit2html
-          junitparser merge artifacts/*/twister.xml junit.xml
-          junit2html junit.xml junit-clang.html
-
-      - name: Upload Unit Test Results in HTML
-        if: always()
-        uses: actions/upload-artifact@v2
-        with:
-          name: HTML Unit Test Results
-          if-no-files-found: ignore
-          path: |
-            junit-clang.html
 
       - name: Publish Unit Test Results
         uses: EnricoMi/publish-unit-test-result-action@v1

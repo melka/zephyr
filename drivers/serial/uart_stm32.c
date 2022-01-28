@@ -20,6 +20,8 @@
 #include <soc.h>
 #include <init.h>
 #include <drivers/uart.h>
+#include <drivers/pinmux.h>
+#include <pinmux/pinmux_stm32.h>
 #include <drivers/clock_control.h>
 #include <pm/pm.h>
 
@@ -48,34 +50,6 @@ LOG_MODULE_REGISTER(uart_stm32);
 	((struct uart_stm32_data *const)(dev)->data)
 #define UART_STRUCT(dev)					\
 	((USART_TypeDef *)(DEV_CFG(dev))->uconf.base)
-
-#if HAS_LPUART_1
-#ifdef USART_PRESC_PRESCALER
-uint32_t lpuartdiv_calc(const uint64_t clock_rate, const uint16_t presc_idx,
-			const uint32_t baud_rate)
-{
-	uint64_t lpuartdiv;
-
-	lpuartdiv = clock_rate / LPUART_PRESCALER_TAB[presc_idx];
-	lpuartdiv *= LPUART_LPUARTDIV_FREQ_MUL;
-	lpuartdiv += baud_rate / 2;
-	lpuartdiv /= baud_rate;
-
-	return (uint32_t)lpuartdiv;
-}
-#else
-uint32_t lpuartdiv_calc(const uint64_t clock_rate, const uint32_t baud_rate)
-{
-	uint64_t lpuartdiv;
-
-	lpuartdiv = clock_rate * LPUART_LPUARTDIV_FREQ_MUL;
-	lpuartdiv += baud_rate / 2;
-	lpuartdiv /= baud_rate;
-
-	return (uint32_t)lpuartdiv;
-}
-#endif /* USART_PRESC_PRESCALER */
-#endif /* HAS_LPUART_1 */
 
 #define TIMEOUT 1000
 
@@ -118,39 +92,13 @@ static inline void uart_stm32_set_baudrate(const struct device *dev,
 		return;
 	}
 
+
 #if HAS_LPUART_1
 	if (IS_LPUART_INSTANCE(UartInstance)) {
-		uint32_t lpuartdiv;
-#ifdef USART_PRESC_PRESCALER
-		uint8_t presc_idx;
-		uint32_t presc_val;
-
-		for (presc_idx = 0; presc_idx < ARRAY_SIZE(LPUART_PRESCALER_TAB); presc_idx++) {
-			lpuartdiv = lpuartdiv_calc(clock_rate, presc_idx, baud_rate);
-			if (lpuartdiv >= LPUART_BRR_MIN_VALUE && lpuartdiv <= LPUART_BRR_MASK) {
-				break;
-			}
-		}
-
-		if (presc_idx == ARRAY_SIZE(LPUART_PRESCALER_TAB)) {
-			LOG_ERR("Unable to set %s to %d", dev->name, baud_rate);
-			return;
-		}
-
-		presc_val = presc_idx << USART_PRESC_PRESCALER_Pos;
-
-		LL_LPUART_SetPrescaler(UartInstance, presc_val);
-#else
-		lpuartdiv = lpuartdiv_calc(clock_rate, baud_rate);
-		if (lpuartdiv < LPUART_BRR_MIN_VALUE || lpuartdiv > LPUART_BRR_MASK) {
-			LOG_ERR("Unable to set %s to %d", dev->name, baud_rate);
-			return;
-		}
-#endif /* USART_PRESC_PRESCALER */
 		LL_LPUART_SetBaudRate(UartInstance,
 				      clock_rate,
 #ifdef USART_PRESC_PRESCALER
-				      presc_val,
+				      LL_USART_PRESCALER_DIV1,
 #endif
 				      baud_rate);
 	} else {
@@ -525,36 +473,15 @@ static void uart_stm32_poll_out(const struct device *dev,
 					unsigned char c)
 {
 	USART_TypeDef *UartInstance = UART_STRUCT(dev);
-#ifdef CONFIG_PM
-	struct uart_stm32_data *data = DEV_DATA(dev);
-#endif
-	int key;
 
-	/* Wait for TXE flag to be raised
-	 * When TXE flag is raised, we lock interrupts to prevent interrupts (notably that of usart)
-	 * or thread switch. Then, we can safely send our character. The character sent will be
-	 * interlaced with the characters potentially send with interrupt transmission API
-	 */
-	while (1) {
-		if (LL_USART_IsActiveFlag_TXE(UartInstance)) {
-			key = irq_lock();
-			if (LL_USART_IsActiveFlag_TXE(UartInstance)) {
-				break;
-			}
-			irq_unlock(key);
-		}
-		if (!k_is_in_isr()) {
-			/* yield execution to another thread of the same or higher priority. */
-			k_yield();
-		}
+	/* Wait for TXE flag to be raised */
+	while (!LL_USART_IsActiveFlag_TXE(UartInstance)) {
 	}
 
 #ifdef CONFIG_PM
+	struct uart_stm32_data *data = DEV_DATA(dev);
 
-	/* If an interrupt transmission is in progress, the pm constraint is already managed by the
-	 * call of uart_stm32_irq_tx_[en|dis]able
-	 */
-	if (!data->tx_poll_stream_on && !data->tx_int_stream_on) {
+	if (!data->tx_poll_stream_on) {
 		data->tx_poll_stream_on = true;
 
 		/* Don't allow system to suspend until stream
@@ -570,7 +497,6 @@ static void uart_stm32_poll_out(const struct device *dev,
 #endif /* CONFIG_PM */
 
 	LL_USART_TransmitData8(UartInstance, (uint8_t)c);
-	irq_unlock(key);
 }
 
 static int uart_stm32_err_check(const struct device *dev)
@@ -630,14 +556,6 @@ static int uart_stm32_fifo_fill(const struct device *dev,
 {
 	USART_TypeDef *UartInstance = UART_STRUCT(dev);
 	uint8_t num_tx = 0U;
-	int key;
-
-	if (!LL_USART_IsActiveFlag_TXE(UartInstance)) {
-		return num_tx;
-	}
-
-	/* Lock interrupts to prevent nested interrupts or thread switch */
-	key = irq_lock();
 
 	while ((size - num_tx > 0) &&
 	       LL_USART_IsActiveFlag_TXE(UartInstance)) {
@@ -646,8 +564,6 @@ static int uart_stm32_fifo_fill(const struct device *dev,
 		/* Send a character (8bit , parity none) */
 		LL_USART_TransmitData8(UartInstance, tx_data[num_tx++]);
 	}
-
-	irq_unlock(key);
 
 	return num_tx;
 }
@@ -677,43 +593,24 @@ static int uart_stm32_fifo_read(const struct device *dev, uint8_t *rx_data,
 static void uart_stm32_irq_tx_enable(const struct device *dev)
 {
 	USART_TypeDef *UartInstance = UART_STRUCT(dev);
-#ifdef CONFIG_PM
-	struct uart_stm32_data *data = DEV_DATA(dev);
-	int key;
-#endif
 
 #ifdef CONFIG_PM
-	key = irq_lock();
+	struct uart_stm32_data *data = DEV_DATA(dev);
+
 	data->tx_poll_stream_on = false;
-	data->tx_int_stream_on = true;
 	uart_stm32_pm_constraint_set(dev);
 #endif
 	LL_USART_EnableIT_TC(UartInstance);
-
-#ifdef CONFIG_PM
-	irq_unlock(key);
-#endif
 }
 
 static void uart_stm32_irq_tx_disable(const struct device *dev)
 {
 	USART_TypeDef *UartInstance = UART_STRUCT(dev);
-#ifdef CONFIG_PM
-	struct uart_stm32_data *data = DEV_DATA(dev);
-	int key;
-
-	key = irq_lock();
-#endif
 
 	LL_USART_DisableIT_TC(UartInstance);
 
 #ifdef CONFIG_PM
-	data->tx_int_stream_on = false;
 	uart_stm32_pm_constraint_release(dev);
-#endif
-
-#ifdef CONFIG_PM
-	irq_unlock(key);
 #endif
 }
 
@@ -913,10 +810,10 @@ static inline void async_evt_rx_buf_release(struct uart_stm32_data *data)
 static inline void async_timer_start(struct k_work_delayable *work,
 				     int32_t timeout)
 {
-	if ((timeout != SYS_FOREVER_US) && (timeout != 0)) {
+	if ((timeout != SYS_FOREVER_MS) && (timeout != 0)) {
 		/* start timer */
-		LOG_DBG("async timer started for %d us", timeout);
-		k_work_reschedule(work, K_USEC(timeout));
+		LOG_DBG("async timer started for %d ms", timeout);
+		k_work_reschedule(work, K_MSEC(timeout));
 	}
 }
 
@@ -1544,7 +1441,9 @@ static int uart_stm32_init(const struct device *dev)
 	}
 
 	/* Configure dt provided device signals when available */
-	err = pinctrl_apply_state(config->pcfg, PINCTRL_STATE_DEFAULT);
+	err = stm32_dt_pinctrl_configure(config->pinctrl_list,
+					 config->pinctrl_list_size,
+					 (uint32_t)UART_STRUCT(dev));
 	if (err < 0) {
 		return err;
 	}
@@ -1692,7 +1591,8 @@ static void uart_stm32_irq_config_func_##index(const struct device *dev)	\
 #define STM32_UART_INIT(index)						\
 STM32_UART_IRQ_HANDLER_DECL(index)					\
 									\
-PINCTRL_DT_INST_DEFINE(index)						\
+static const struct soc_gpio_pinctrl uart_pins_##index[] =		\
+				ST_STM32_DT_INST_PINCTRL(index, 0);	\
 									\
 static const struct uart_stm32_config uart_stm32_cfg_##index = {	\
 	.uconf = {							\
@@ -1703,9 +1603,10 @@ static const struct uart_stm32_config uart_stm32_cfg_##index = {	\
 		    .enr = DT_INST_CLOCKS_CELL(index, bits)		\
 	},								\
 	.hw_flow_control = DT_INST_PROP(index, hw_flow_control),	\
-	.parity = DT_INST_ENUM_IDX_OR(index, parity, UART_CFG_PARITY_NONE),	\
-	.pcfg = PINCTRL_DT_INST_DEV_CONFIG_GET(index),			\
+	.parity = DT_ENUM_IDX_OR(DT_DRV_INST(index), parity, UART_CFG_PARITY_NONE),	\
 	STM32_UART_POLL_IRQ_HANDLER_FUNC(index)				\
+	.pinctrl_list = uart_pins_##index,				\
+	.pinctrl_list_size = ARRAY_SIZE(uart_pins_##index),		\
 };									\
 									\
 static struct uart_stm32_data uart_stm32_data_##index = {		\
