@@ -48,7 +48,7 @@ class ToggleAction(argparse.Action):
 
 class CANopenBinaryRunner(ZephyrBinaryRunner):
     '''Runner front-end for CANopen.'''
-    def __init__(self, cfg, node_id, can_context=DEFAULT_CAN_CONTEXT,
+    def __init__(self, cfg, dev_id, can_context=DEFAULT_CAN_CONTEXT,
                  program_number=DEFAULT_PROGRAM_NUMBER, confirm=True,
                  confirm_only=True, timeout=DEFAULT_TIMEOUT,
                  sdo_retries=DEFAULT_SDO_RETRIES, sdo_timeout=DEFAULT_SDO_TIMEOUT):
@@ -58,12 +58,13 @@ class CANopenBinaryRunner(ZephyrBinaryRunner):
                                "how to fix")
 
         super().__init__(cfg)
+        self.dev_id = dev_id # Only use for error checking in do_run()
         self.bin_file = cfg.bin_file
         self.confirm = confirm
         self.confirm_only = confirm_only
         self.timeout = timeout
         self.downloader = CANopenProgramDownloader(logger=self.logger,
-                                                   node_id=node_id,
+                                                   node_id=dev_id,
                                                    can_context=can_context,
                                                    program_number=program_number,
                                                    sdo_retries=sdo_retries,
@@ -75,14 +76,18 @@ class CANopenBinaryRunner(ZephyrBinaryRunner):
 
     @classmethod
     def capabilities(cls):
-        return RunnerCaps(commands={'flash'}, flash_addr=False)
+        return RunnerCaps(commands={'flash'}, dev_id=True, flash_addr=False)
+
+    @classmethod
+    def dev_id_help(cls) -> str:
+        return 'CANopen Node ID.'
 
     @classmethod
     def do_add_parser(cls, parser):
-        # Required:
-        parser.add_argument('--node-id', required=True, help='Node ID')
-
         # Optional:
+        parser.add_argument('--node-id', dest='dev_id',
+                            help=cls.dev_id_help())
+
         parser.add_argument('--can-context', default=DEFAULT_CAN_CONTEXT,
                             help=f'Python-CAN context to use (default: {DEFAULT_CAN_CONTEXT})')
         parser.add_argument('--program-number', type=int, default=DEFAULT_PROGRAM_NUMBER,
@@ -105,7 +110,7 @@ class CANopenBinaryRunner(ZephyrBinaryRunner):
 
     @classmethod
     def do_create(cls, cfg, args):
-        return CANopenBinaryRunner(cfg, int(args.node_id),
+        return CANopenBinaryRunner(cfg, int(args.dev_id),
                                    can_context=args.can_context,
                                    program_number=args.program_number,
                                    confirm=args.confirm,
@@ -115,6 +120,9 @@ class CANopenBinaryRunner(ZephyrBinaryRunner):
                                    sdo_timeout=args.sdo_timeout)
 
     def do_run(self, command, **kwargs):
+        if not self.dev_id:
+            raise RuntimeError('Please specify a CANopen node ID with the '
+                               '-i/--dev-id or --node-id command-line switch.')
         if command == 'flash':
             self.flash(**kwargs)
 

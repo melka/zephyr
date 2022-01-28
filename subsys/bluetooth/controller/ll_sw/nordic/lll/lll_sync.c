@@ -7,6 +7,7 @@
 
 #include <toolchain.h>
 #include <sys/util.h>
+#include <sys/byteorder.h>
 
 #include "hal/ccm.h"
 #include "hal/radio.h"
@@ -160,10 +161,8 @@ void lll_sync_aux_prepare_cb(struct lll_sync *lll,
 
 	/* Set access address for sync */
 	radio_aa_set(lll->access_addr);
-	radio_crc_configure(((0x5bUL) | ((0x06UL) << 8) | ((0x00UL) << 16)),
-			    (((uint32_t)lll->crc_init[2] << 16) |
-			     ((uint32_t)lll->crc_init[1] << 8) |
-			     ((uint32_t)lll->crc_init[0])));
+	radio_crc_configure(PDU_CRC_POLYNOMIAL,
+				sys_get_le24(lll->crc_init));
 
 	lll_chan_set(lll_aux->chan);
 
@@ -405,10 +404,8 @@ static int prepare_cb_common(struct lll_prepare_param *p, uint8_t chan_idx)
 	radio_phy_set(lll->phy, 1);
 	radio_pkt_configure(8, LL_EXT_OCTETS_RX_MAX, (lll->phy << 1));
 	radio_aa_set(lll->access_addr);
-	radio_crc_configure(((0x5bUL) | ((0x06UL) << 8) | ((0x00UL) << 16)),
-			    (((uint32_t)lll->crc_init[2] << 16) |
-			     ((uint32_t)lll->crc_init[1] << 8) |
-			     ((uint32_t)lll->crc_init[0])));
+	radio_crc_configure(PDU_CRC_POLYNOMIAL,
+					sys_get_le24(lll->crc_init));
 
 	lll_chan_set(chan_idx);
 
@@ -440,13 +437,13 @@ static int prepare_cb_common(struct lll_prepare_param *p, uint8_t chan_idx)
 
 	radio_tmr_end_capture();
 
-#if defined(CONFIG_BT_CTLR_GPIO_LNA_PIN)
+#if defined(HAL_RADIO_GPIO_HAVE_LNA_PIN)
 	radio_gpio_lna_setup();
 
 	radio_gpio_pa_lna_enable(remainder_us +
 				 radio_rx_ready_delay_get(lll->phy, 1) -
-				 CONFIG_BT_CTLR_GPIO_LNA_OFFSET);
-#endif /* CONFIG_BT_CTLR_GPIO_LNA_PIN */
+				 HAL_RADIO_GPIO_LNA_OFFSET);
+#endif /* HAL_RADIO_GPIO_HAVE_LNA_PIN */
 
 #if defined(CONFIG_BT_CTLR_XTAL_ADVANCED) && \
 	(EVENT_OVERHEAD_PREEMPT_US <= EVENT_OVERHEAD_PREEMPT_MIN_US)
@@ -594,13 +591,13 @@ static void isr_aux_setup(void *param)
 	/* scanner always measures RSSI */
 	radio_rssi_measure();
 
-#if defined(CONFIG_BT_CTLR_GPIO_LNA_PIN)
+#if defined(HAL_RADIO_GPIO_HAVE_LNA_PIN)
 	radio_gpio_lna_setup();
 
 	radio_gpio_pa_lna_enable(aux_start_us +
 				 radio_rx_ready_delay_get(phy_aux, 1) -
-				 CONFIG_BT_CTLR_GPIO_LNA_OFFSET);
-#endif /* CONFIG_BT_CTLR_GPIO_LNA_PIN */
+				 HAL_RADIO_GPIO_LNA_OFFSET);
+#endif /* HAL_RADIO_GPIO_HAVE_LNA_PIN */
 }
 
 /**
@@ -832,6 +829,8 @@ static void isr_rx_aux_chain(void *param)
 		 */
 		lll_isr_status_reset();
 
+		crc_ok =  0U;
+
 		goto isr_rx_aux_chain_done;
 	}
 
@@ -865,6 +864,7 @@ static void isr_rx_aux_chain(void *param)
 		return;
 	}
 
+isr_rx_aux_chain_done:
 	if (!crc_ok) {
 		struct node_rx_pdu *node_rx;
 
@@ -880,7 +880,6 @@ static void isr_rx_aux_chain(void *param)
 		ull_rx_sched();
 	}
 
-isr_rx_aux_chain_done:
 	if (lll->is_aux_sched) {
 		lll->is_aux_sched = 0U;
 

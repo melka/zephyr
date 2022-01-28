@@ -103,7 +103,7 @@ union log_msg2_generic {
  */
 enum z_log_msg2_mode {
 	/* Runtime mode is least efficient but supports all cases thus it is
-	 * threated as a fallback method when others cannot be used.
+	 * treated as a fallback method when others cannot be used.
 	 */
 	Z_LOG_MSG2_MODE_RUNTIME,
 	/* Mode creates statically a string package on stack and calls a
@@ -358,7 +358,7 @@ do {\
 			  _level, _data, _dlen, ...) \
 do { \
 	Z_LOG_MSG2_STR_VAR(_fmt, ##__VA_ARGS__); \
-	if (CBPRINTF_MUST_RUNTIME_PACKAGE(_cstr_cnt, __VA_ARGS__)) { \
+	if (CBPRINTF_MUST_RUNTIME_PACKAGE(_cstr_cnt, 0, __VA_ARGS__)) { \
 		LOG_MSG2_DBG("create runtime message\n");\
 		z_log_msg2_runtime_create(_domain_id, (void *)_source, \
 					  _level, (uint8_t *)_data, _dlen,\
@@ -375,7 +375,7 @@ do { \
 			  _level, _data, _dlen, ...) \
 do { \
 	Z_LOG_MSG2_STR_VAR(_fmt, ##__VA_ARGS__); \
-	if (CBPRINTF_MUST_RUNTIME_PACKAGE(_cstr_cnt, __VA_ARGS__)) { \
+	if (CBPRINTF_MUST_RUNTIME_PACKAGE(_cstr_cnt, 0, __VA_ARGS__)) { \
 		LOG_MSG2_DBG("create runtime message\n");\
 		z_log_msg2_runtime_create(_domain_id, (void *)_source, \
 					  _level, (uint8_t *)_data, _dlen,\
@@ -401,6 +401,14 @@ do { \
 	Z_LOG_MSG2_CREATE2(_try_0cpy, _mode, UTIL_CAT(Z_LOG_FUNC_PREFIX_, _level), \
 			   _domain_id, _source, _level, _data, _dlen, \
 			   Z_LOG_STR(_level, __VA_ARGS__))
+
+/** @brief Allocate log message.
+ *
+ * @param wlen Length in 32 bit words.
+ *
+ * @return allocated space or null if cannot be allocated.
+ */
+struct log_msg2 *z_log_msg2_alloc(uint32_t wlen);
 
 /** @brief Finalize message.
  *
